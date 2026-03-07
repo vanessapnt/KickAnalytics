@@ -1,0 +1,5 @@
+.env
+Makefile  
+Dockerfile
+.git/
+__pycache__/

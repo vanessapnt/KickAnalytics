@@ -156,7 +156,7 @@ async def main():
     print(f"Server running on port {PORT}")
     async with websockets.serve(
         ws_handler,
-        "0.0.0.0",
+        "0.0.0.0", # listen on all interfaces, not just localhost
         PORT,
         process_request=http_handler,
     ):
