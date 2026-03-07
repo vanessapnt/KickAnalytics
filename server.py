@@ -2,6 +2,7 @@ import asyncio, json
 import websockets
 from pathlib import Path
 from collections import defaultdict
+import http
 
 from config import *
 
@@ -126,10 +127,10 @@ STATIC_FILES = {
     "/spectator.html": "spectator.html",
 }
 
-async def http_handler(connection, request):
-    path = request.path.split("?")[0] # /camera.html?foo=1 -> /camera.html
-    upgrade_hdr = request.headers.get("Upgrade", "")
-    connection_hdr = request.headers.get("Connection", "")
+async def http_handler(path, headers):
+    path = path.split("?")[0] # /camera.html?foo=1 -> /camera.html
+    upgrade_hdr = headers.get("Upgrade", "")
+    connection_hdr = headers.get("Connection", "")
 
     is_ws_upgrade = (
         upgrade_hdr.lower() == "websocket"
@@ -139,20 +140,19 @@ async def http_handler(connection, request):
         return None # it's a websocket upgrade request, lets ws_handler take care of it
 
     filename = STATIC_FILES.get(path)
+    # The response sent to the client must be a tuple of 3 elements: (status, headers, body)
     if not filename:
-        return connection.respond(404, "Not Found\n")
+        return http.HTTPStatus.NOT_FOUND, [], b"Not Found\n" # b : string -> bytes
     filepath = Path(__file__).parent / filename # absolute path to the static file
     if not filepath.exists():
-        return connection.respond(404, "Not Found\n")
-    content = filepath.read_text(encoding="utf-8")
-    response = connection.respond(200, content)
-    response.headers["Content-Type"] = "text/html; charset=utf-8"
-    return response # sent to client
+        return http.HTTPStatus.NOT_FOUND, [], b"Not Found\n"
+    content = filepath.read_bytes()
+    return http.HTTPStatus.OK, [("Content-Type", "text/html; charset=utf-8")], content
 
 # With websockets.serve(...), the library creates an underlying TCP listening socket (bind/listen/accept).
 # For each accepted client, it creates a connection and gives you the ws object (a WebSocket wrapper) in the handler.
 async def main():
-    """build_goal_zones()"""
+    #build_goal_zones()
     print(f"Server running on port {PORT}")
     async with websockets.serve(
         ws_handler,
