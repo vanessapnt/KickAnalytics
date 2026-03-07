@@ -1,6 +1,9 @@
-IMAGE_NAME = kick_analytics
+IMAGE_NAME = kick-analytics
 PORT_CONTAINER = $${PORT:-8080}
 PORT_HOST = 8000
+
+-include .env
+export
 
 info:
 	@echo "🚀 KickAnalytics - Usage Guide"
@@ -38,7 +41,7 @@ run-local:
 
 gcloud-auth:
 	gcloud auth login
-	gcloud config set project $(PROJECT_ID)
+	gcloud config set project $${PROJECT_ID}
 
 deploy-gcloud:
 	gcloud builds submit --tag gcr.io/$${PROJECT_ID}/$(IMAGE_NAME)
