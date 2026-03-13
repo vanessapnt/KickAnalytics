@@ -7,7 +7,7 @@ import http
 from config import *
 
 cameras        = set()
-spectators     = set() #len(spectators) = 0
+spectators     = set()
 ip_connections = defaultdict(int) # initialize to 0 for any new key
 
 async def broadcast(targets, msg):
@@ -45,11 +45,20 @@ async def process_camera_message(msg):
         data = json.loads(msg)
     except json.JSONDecodeError:
         return
-    if data.get("type") == "calibration": # 4 corners found in the camera frame, with their coordinates and the frame dimensions (frame_width, frame_height)
-        pass
-    elif data.get("type") == "calibration_failed": # field detection failed
+    if data.get("type") == "calibration_preview":
+        await broadcast(spectators, {
+            "type":         "calibration_preview",
+            "image":        data.get("image"),
+            "corners":      data.get("corners"),
+            "frame_width":  data.get("frame_width"),
+            "frame_height": data.get("frame_height"),
+        })
+    elif data.get("type") == "confirm_calibration":
+        await broadcast(spectators, {"type": "calibration_ok"})
+        await broadcast(cameras,    {"type": "calibration_ok"})
+    elif data.get("type") == "calibration_failed":
         await broadcast(spectators, {"type": "calibration_failed"})
-    elif data.get("type") == "position": # ball position detected in the camera frame, with its coordinates (x,y) and confidence level (conf)
+    elif data.get("type") == "position":
         pass
 
 async def handle_camera(ws):
@@ -66,14 +75,18 @@ async def handle_camera(ws):
         cameras.discard(ws)
         print(f"Camera disconnected ({ip})")
 
-# spectator ("start calibration")-> server -> camera
 async def process_spectator_message(msg):
     try:
         data = json.loads(msg)
     except json.JSONDecodeError:
         return
     if data.get("type") == "trigger_calibration":
-        await broadcast(cameras, {"type": "start_calibration"}) # cameras : set of ws
+        # spectator requests calibration → forward to cameras
+        await broadcast(cameras, {"type": "start_calibration"})
+    elif data.get("type") == "confirm_calibration":
+        # spectator confirmed calibration → notify everyone
+        await broadcast(spectators, {"type": "calibration_ok"})
+        await broadcast(cameras,    {"type": "calibration_ok"})
 
 async def handle_spectator(ws):
     ip = ws.remote_address[0]
@@ -105,7 +118,7 @@ async def sync_client_state(ws):
 # To run it, we need await (inside another coroutine) or asyncio.run(...) at the top level.
 # Optionally, we can run it as a parallel task with asyncio.create_task(...)
 
-# receives all websocket connections and dispatches them to the appropriate handler based on the URL path (/camera for cameras, / for spectators). 
+# receives all websocket connections and dispatches them to the appropriate handler based on the URL path (/camera for cameras, / for spectators).
 async def ws_handler(ws):
     if not connection_allowed(ws):
         await ws.close()
@@ -113,7 +126,7 @@ async def ws_handler(ws):
     ip = ws.remote_address[0]
     ip_connections[ip] += 1
     try:
-        if "/camera" in ws.request.path:
+        if "/camera" in ws.path:
             await handle_camera(ws)
         else:
             await handle_spectator(ws)
@@ -125,11 +138,12 @@ STATIC_FILES = {
     "/index.html":     "index.html",
     "/camera.html":    "camera.html",
     "/spectator.html": "spectator.html",
+    "/model.onnx":     "model.onnx",
 }
 
 async def http_handler(path, headers):
     path = path.split("?")[0] # /camera.html?foo=1 -> /camera.html
-    upgrade_hdr = headers.get("Upgrade", "")
+    upgrade_hdr    = headers.get("Upgrade", "")
     connection_hdr = headers.get("Connection", "")
 
     is_ws_upgrade = (
@@ -147,12 +161,12 @@ async def http_handler(path, headers):
     if not filepath.exists():
         return http.HTTPStatus.NOT_FOUND, [], b"Not Found\n"
     content = filepath.read_bytes()
-    return http.HTTPStatus.OK, [("Content-Type", "text/html; charset=utf-8")], content
+    content_type = "application/octet-stream" if path.endswith(".onnx") else "text/html; charset=utf-8"
+    return http.HTTPStatus.OK, [("Content-Type", content_type)], content
 
 # With websockets.serve(...), the library creates an underlying TCP listening socket (bind/listen/accept).
 # For each accepted client, it creates a connection and gives you the ws object (a WebSocket wrapper) in the handler.
 async def main():
-    #build_goal_zones()
     print(f"Server running on port {PORT}")
     async with websockets.serve(
         ws_handler,
