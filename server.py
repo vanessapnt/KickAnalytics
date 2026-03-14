@@ -5,6 +5,14 @@ from collections import defaultdict
 import http
 
 from config import *
+from game import (
+    game,
+    store_pending_calibration,
+    confirm_calibration,
+    apply_homography,
+    kalman_update,
+    check_goal,
+)
 
 cameras        = set()
 spectators     = set()
@@ -45,7 +53,14 @@ async def process_camera_message(msg):
         data = json.loads(msg)
     except json.JSONDecodeError:
         return
+
+    # "Calibrer" btn (camera) -> preview to spectator screen
     if data.get("type") == "calibration_preview":
+        store_pending_calibration(
+            data.get("corners"),
+            data.get("frame_width"),
+            data.get("frame_height"),
+        )
         await broadcast(spectators, {
             "type":         "calibration_preview",
             "image":        data.get("image"),
@@ -53,17 +68,41 @@ async def process_camera_message(msg):
             "frame_width":  data.get("frame_width"),
             "frame_height": data.get("frame_height"),
         })
+
+    # "OK" btn -> confirm calibration, build homography and goal zones, reset kalman filter
     elif data.get("type") == "confirm_calibration":
+        confirm_calibration()
         await broadcast(spectators, {"type": "calibration_ok"})
         await broadcast(cameras,    {"type": "calibration_ok"})
+
     elif data.get("type") == "calibration_failed":
         await broadcast(spectators, {"type": "calibration_failed"})
+
     elif data.get("type") == "position":
-        pass
+        # camera coordinates -> canvas coordinates
+        cx, cy = apply_homography(data["x"], data["y"])
+        if cx is None:
+            return
+        kx, ky = kalman_update(cx, cy)
+        # normalize to [0, 1] for the spectator canvas
+        nx = kx / CANVAS_W
+        ny = ky / CANVAS_H
+        scorer = check_goal(kx, ky)
+        if scorer:
+            game.score[scorer] += 1
+            await broadcast(spectators, {"type": "goal", "team": scorer, "score": dict(game.score)})
+        await broadcast(spectators, {
+            "type":  "position",
+            "x":     nx,
+            "y":     ny,
+            "conf":  data.get("conf"),
+            "ts":    data.get("ts"),
+            "score": dict(game.score),
+        })
 
 async def handle_camera(ws):
     ip = ws.remote_address[0]
-    cameras.add(ws)
+    cameras.add(ws) # camera opened a new websocket connection
     print(f"Camera connected ({ip})")
     await broadcast(spectators, {"type": "camera_ready"})
     limiter = RateLimiter(MAX_MESSAGES_PER_SEC_CAM)
@@ -81,10 +120,9 @@ async def process_spectator_message(msg):
     except json.JSONDecodeError:
         return
     if data.get("type") == "trigger_calibration":
-        # spectator requests calibration → forward to cameras
         await broadcast(cameras, {"type": "start_calibration"})
     elif data.get("type") == "confirm_calibration":
-        # spectator confirmed calibration → notify everyone
+        confirm_calibration()
         await broadcast(spectators, {"type": "calibration_ok"})
         await broadcast(cameras,    {"type": "calibration_ok"})
 
@@ -99,7 +137,7 @@ async def handle_spectator(ws):
     await sync_client_state(ws)
     limiter = RateLimiter(MAX_MESSAGES_PER_SEC_SPECT)
     try:
-        async for msg in ws: # stops when StopAsyncIteration is raised by await self.recv() in __anext__(self) in ws when the connection is closed.
+        async for msg in ws: # stops when StopAsyncIteration is raised by await self.recv() in __anext__(self) in ws when the connection is closed
             if limiter.allow():
                 await process_spectator_message(msg)
     finally:
@@ -111,14 +149,14 @@ async def handle_spectator(ws):
 async def sync_client_state(ws):
     if cameras:
         await ws.send(json.dumps({"type": "camera_ready"}))
-    await ws.send(json.dumps({"type": "score", "score": {"red": 0, "blue": 0}}))
+    await ws.send(json.dumps({"type": "score", "score": dict(game.score)}))
 
 # normal def -> regular function.
 # async def -> coroutine function (it returns a coroutine object when called).
 # To run it, we need await (inside another coroutine) or asyncio.run(...) at the top level.
 # Optionally, we can run it as a parallel task with asyncio.create_task(...)
 
-# receives all websocket connections and dispatches them to the appropriate handler based on the URL path (/camera for cameras, / for spectators).
+# receives all websocket connections and dispatches them to the appropriate handler based on the URL path
 async def ws_handler(ws):
     if not connection_allowed(ws):
         await ws.close()
