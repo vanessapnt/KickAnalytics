@@ -71,6 +71,20 @@ function capturePreview()
   return tempCanvas.toDataURL('image/jpeg', 0.7); 
 }
 
+function isGreen(r, g, b)
+{
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  if (max === 0) return false;
+  const s = (max - min) / max;
+  const h = max === g
+    ? 60 * ((b - r) / (max - min) + 2)
+    : max === r
+    ? 60 * ((g - b) / (max - min) % 6)
+    : 60 * ((r - g) / (max - min) + 4);
+  return h >= 70 && h <= 140 && s > 0.25;
+}
+
 function detectCorners()
 {
   const W = video.videoWidth, H = video.videoHeight;
@@ -86,7 +100,7 @@ function detectCorners()
     {
       const i = (y * W + x) * 4;
       const r = px[i], g = px[i+1], b = px[i+2];
-      if (g > 60 && g > r * 1.2 && g > b * 1.1) // it's a green pixel
+      if (isGreen(r, g, b))
       {
         greenCount++;
         const sum = x + y, diff = x - y;
@@ -227,10 +241,12 @@ async function start() {
 
   try {
     await loadModel();
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' }
-    });
-    video.srcObject = stream;
+    // stream = await navigator.mediaDevices.getUserMedia({video: { facingMode: 'environment' }});
+    //video.srcObject = stream;
+
+    video.src = '/test.mp4';
+    video.loop = true;
+    video.muted = true;
     await video.play();
 
     // wss is required if the page is served over https (ngrok provides https tunnels), otherwise ws is used for local testing

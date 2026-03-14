@@ -172,11 +172,12 @@ async def ws_handler(ws):
         ip_connections[ip] = max(0, ip_connections[ip] - 1) # nb of connections never negative
 
 STATIC_FILES = {
-    "/":               "index.html",
-    "/index.html":     "index.html",
-    "/camera.html":    "camera.html",
-    "/spectator.html": "spectator.html",
-    "/model.onnx":     "model.onnx",
+    "/" : "index.html",
+    "/index.html" : "index.html",
+    "/camera.html" : "camera.html",
+    "/spectator.html" : "spectator.html",
+    "/model.onnx": "model.onnx",
+    "/test.mp4" : "test.mp4",
 }
 
 async def http_handler(path, headers):
