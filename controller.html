@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Spectateur</title>
+<title>Contrôleur</title>
 </head>
 <body>
 
-<h2>BabyFoot — Spectateur</h2>
+<h2>BabyFoot — Contrôleur</h2>
 
 <p id="status">Déconnecté</p>
 <p>Rouge : <span id="scoreRed">0</span> — Bleu : <span id="scoreBlue">0</span></p>
@@ -17,10 +17,8 @@
 <button id="btnReady" onclick="confirmCalibration()" style="display:none">✅ Prêt</button>
 <button id="btnRetry" onclick="triggerCalibration()" style="display:none">🔄 Relancer</button>
 
-<!-- calibration preview image received from camera -->
-<img id="previewImg" style="display:none; max-width:100%; border:2px solid #00ff00; margin-bottom:8px" />
-
-<p>x=<span id="coordX">—</span> y=<span id="coordY">—</span> conf=<span id="conf">—</span> lat=<span id="lat">—</span></p>
+<br><br>
+<img id="previewImg" style="display:none; max-width:100%; border:2px solid #00ff00" />
 
 <script>
 let ws = null;
@@ -32,9 +30,8 @@ const previewImg   = document.getElementById('previewImg');
 
 function connect()
 {
-  // wss is required if the page is served over https (ngrok provides https tunnels), otherwise ws is used for local testing
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${window.location.host}/`);
+  ws = new WebSocket(`${proto}://${window.location.host}/controller`);
   btnCalibrate.disabled = true;
 
   ws.onopen = () => document.getElementById('status').textContent = 'Connecté ✓';
@@ -50,7 +47,7 @@ function connect()
   ws.onmessage = (e) => {
     const d = JSON.parse(e.data);
 
-    if (d.type === 'camera_ready') { // camera opened a new ws connection (start btn)
+    if (d.type === 'camera_ready') {
       btnCalibrate.disabled = false;
       document.getElementById('status').textContent = '📱 Caméra prête';
     }
@@ -73,31 +70,23 @@ function connect()
       btnRetry.style.display   = 'none';
       document.getElementById('status').textContent = '❌ Échec détection — réessaie';
     }
-    if (d.type === 'position') {
-      if (d.ts)
-        document.getElementById('lat').textContent = (Date.now() - d.ts) + 'ms';
-      document.getElementById('coordX').textContent    = d.x?.toFixed(3) ?? '—';
-      document.getElementById('coordY').textContent    = d.y?.toFixed(3) ?? '—';
-      document.getElementById('conf').textContent = d.conf != null ? Math.round(d.conf*100) + '%' : '—';
-      if (d.score)
-        { document.getElementById('scoreRed').textContent = d.score.red; document.getElementById('scoreBlue').textContent = d.score.blue; }
-    }
-    if (d.type === 'goal') {
-      alert(d.team === 'red' ? '🔴 BUT Rouge !' : '🔵 BUT Bleu !');
-      if (d.score)
-        { document.getElementById('scoreRed').textContent = d.score.red; document.getElementById('scoreBlue').textContent = d.score.blue; }
-    }
     if (d.type === 'score') {
       document.getElementById('scoreRed').textContent  = d.score.red;
       document.getElementById('scoreBlue').textContent = d.score.blue;
+    }
+    if (d.type === 'goal') {
+      alert(d.team === 'red' ? '🔴 BUT Rouge !' : '🔵 BUT Bleu !');
+      if (d.score) {
+        document.getElementById('scoreRed').textContent  = d.score.red;
+        document.getElementById('scoreBlue').textContent = d.score.blue;
+      }
     }
   };
 }
 
 function triggerCalibration()
 {
-  if (btnCalibrate.disabled)
-    return;
+  if (btnCalibrate.disabled) return;
   ws?.send(JSON.stringify({type: 'trigger_calibration'}));
   previewImg.style.display = 'none';
   btnReady.style.display   = 'none';

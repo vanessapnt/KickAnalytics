@@ -175,7 +175,7 @@ STATIC_FILES = {
     "/" : "index.html",
     "/index.html" : "index.html",
     "/camera.html" : "camera.html",
-    "/spectator.html" : "spectator.html",
+    "/controller.html" : "controller.html",
     "/model.onnx": "model.onnx",
     "/test.mp4" : "test.mp4",
 }
