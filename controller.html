@@ -48,6 +48,7 @@ function connect()
     const d = JSON.parse(e.data);
 
     if (d.type === 'camera_ready') {
+      console.log('Camera ready:', d);
       btnCalibrate.disabled = false;
       document.getElementById('status').textContent = '📱 Caméra prête';
     }

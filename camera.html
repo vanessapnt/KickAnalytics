@@ -19,7 +19,6 @@
 <button id="btnRetry" onclick="calibrate()" style="display:none">🔄 Relancer</button>
 
 <br><br>
-<!-- video is hidden — only used to read frames for detection -->
 <video id="video" autoplay playsinline muted style="display:none"></video>
 <!-- preview canvas shows the captured frame + green corners overlay after calibrate() -->
 <canvas id="preview" style="max-width:100%; display:none"></canvas>
@@ -86,7 +85,7 @@ function isGreen(r, g, b)
     : max === r
     ? 60 * ((g - b) / (max - min) % 6)
     : 60 * ((r - g) / (max - min) + 4);
-  return h >= 70 && h <= 140 && s > 0.25;
+  return h >= 60 && h <= 160 && s > 0.15;
 }
 
 function detectCorners()
@@ -115,8 +114,11 @@ function detectCorners()
       }
     }
   }
-  if (greenCount < W * H * 0.15)
+  if (greenCount < W * H * 0.01)
+  {
+    console.log(`Green: ${greenCount}px / ${W*H}px total (${(greenCount/W/H*100).toFixed(1)}%)`);
     return null;
+  }
   return [tl, tr, br, bl];
 }
 
@@ -195,15 +197,21 @@ async function detectBall()
   return best;
 }
 
-async function ballCoordinatesLoop()
-{
-  if (!running)
-    return;
-  const d = await detectBall();
-  if (d) {
-    ws?.send(JSON.stringify({type: 'position', x: d.cx, y: d.cy, frame_width: video.videoWidth, frame_height: video.videoHeight, conf: d.conf, ts: Date.now()}));
+let detecting = false;
+
+// detecting acts as a mutex to avoid multiple concurrent inferences, so the page doesn't get overwhelmed
+async function ballCoordinatesLoop() {
+  if (!running) return;
+  if (!detecting) {
+    detecting = true;
+    const d = await detectBall();
+    if (d) ws?.send(JSON.stringify({ type: 'position', x: d.cx, y: d.cy,
+      frame_width: video.videoWidth, frame_height: video.videoHeight,
+      conf: d.conf, ts: Date.now()
+    }));
+    detecting = false;
   }
-  requestAnimationFrame(ballCoordinatesLoop);
+  setTimeout(() => requestAnimationFrame(ballCoordinatesLoop), 100);
 }
 
 async function loadModel()

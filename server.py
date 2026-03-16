@@ -18,8 +18,12 @@ cameras        = set()
 spectators     = set()
 ip_connections = defaultdict(int) # initialize to 0 for any new key
 
+controller    = set()
+
 async def broadcast(targets, msg):
     data = json.dumps(msg)
+    if not targets:
+        return
     for ws in targets.copy(): # err : Set changed size during iteration
         try:
             await ws.send(data)
@@ -61,7 +65,7 @@ async def process_camera_message(msg):
             data.get("frame_width"),
             data.get("frame_height"),
         )
-        await broadcast(spectators, {
+        await broadcast(controller, {
             "type":         "calibration_preview",
             "image":        data.get("image"),
             "corners":      data.get("corners"),
@@ -72,11 +76,11 @@ async def process_camera_message(msg):
     # "OK" btn -> confirm calibration, build homography and goal zones, reset kalman filter
     elif data.get("type") == "confirm_calibration":
         confirm_calibration()
-        await broadcast(spectators, {"type": "calibration_ok"})
+        await broadcast(controller, {"type": "calibration_ok"})
         await broadcast(cameras,    {"type": "calibration_ok"})
 
     elif data.get("type") == "calibration_failed":
-        await broadcast(spectators, {"type": "calibration_failed"})
+        await broadcast(controller, {"type": "calibration_failed"})
 
     elif data.get("type") == "position":
         # camera coordinates -> canvas coordinates
@@ -104,7 +108,7 @@ async def handle_camera(ws):
     ip = ws.remote_address[0]
     cameras.add(ws) # camera opened a new websocket connection
     print(f"Camera connected ({ip})")
-    await broadcast(spectators, {"type": "camera_ready"})
+    await broadcast(controller, {"type": "camera_ready"})
     limiter = RateLimiter(MAX_MESSAGES_PER_SEC_CAM)
     try:
         async for msg in ws:
@@ -114,17 +118,36 @@ async def handle_camera(ws):
         cameras.discard(ws)
         print(f"Camera disconnected ({ip})")
 
-async def process_spectator_message(msg):
-    try:
-        data = json.loads(msg)
-    except json.JSONDecodeError:
+
+# Handler pour le controller (une seule connexion)
+async def handle_controller(ws):
+    ip = ws.remote_address[0]
+    if len(controller) >= 1:
+        print(f"Controller déjà connecté : {ip}")
+        await ws.close()
         return
-    if data.get("type") == "trigger_calibration":
-        await broadcast(cameras, {"type": "start_calibration"})
-    elif data.get("type") == "confirm_calibration":
-        confirm_calibration()
-        await broadcast(spectators, {"type": "calibration_ok"})
-        await broadcast(cameras,    {"type": "calibration_ok"})
+    controller.add(ws)
+    print(f"Controller connecté ({ip})")
+    if cameras:
+        await ws.send(json.dumps({"type": "camera_ready"}))
+    limiter = RateLimiter(MAX_MESSAGES_PER_SEC_SPECT)
+    try:
+        async for msg in ws:
+            if not limiter.allow():
+                continue
+            try:
+                data = json.loads(msg)
+            except json.JSONDecodeError:
+                continue
+            if data.get("type") == "trigger_calibration":
+                await broadcast(cameras, {"type": "start_calibration"})
+            elif data.get("type") == "confirm_calibration":
+                confirm_calibration()
+                await broadcast(controller, {"type": "calibration_ok"})
+                await broadcast(cameras,    {"type": "calibration_ok"})
+    finally:
+        controller.discard(ws)
+        print(f"Controller déconnecté ({ip})")
 
 async def handle_spectator(ws):
     ip = ws.remote_address[0]
@@ -158,6 +181,7 @@ async def sync_client_state(ws):
 
 # receives all websocket connections and dispatches them to the appropriate handler based on the URL path
 async def ws_handler(ws):
+    print(f"New WS connection: path={ws.path} ip={ws.remote_address[0]}")
     if not connection_allowed(ws):
         await ws.close()
         return
@@ -166,6 +190,8 @@ async def ws_handler(ws):
     try:
         if "/camera" in ws.path:
             await handle_camera(ws)
+        elif "/controller" in ws.path:
+            await handle_controller(ws)
         else:
             await handle_spectator(ws)
     finally:

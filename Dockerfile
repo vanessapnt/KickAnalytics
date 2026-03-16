@@ -17,4 +17,4 @@ COPY . .
 # ignored by google cloud build, but needed for local testing
 EXPOSE 8080
 
-CMD ["python", "server.py"]
+CMD ["python", "-u", "server.py"]
