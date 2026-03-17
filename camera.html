@@ -106,8 +106,8 @@ function detectCorners()
         const sum = x + y, diff = x - y;
         if (sum  < minSum)  { minSum  = sum;  tl = [x,y]; } // low x and low y
         if (sum  > maxSum)  { maxSum  = sum;  br = [x,y]; } // high x and high y
-        if (diff < minDiff) { minDiff = diff; tr = [x,y]; } // low x and high y
-        if (diff > maxDiff) { maxDiff = diff; bl = [x,y]; } // high x and low y
+        if (diff < minDiff) { minDiff = diff; bl = [x,y]; } // low x and high y
+        if (diff > maxDiff) { maxDiff = diff; tr = [x,y]; } // high x and low y
       }
     }
   }
@@ -116,6 +116,7 @@ function detectCorners()
     console.log(`Green: ${greenCount}px / ${W*H}px total (${(greenCount/W/H*100).toFixed(1)}%)`);
     return null;
   }
+  console.log(`Corners detected: tl=${tl} tr=${tr} br=${br} bl=${bl} (green: ${greenCount}px)`);
   return [tl, tr, br, bl];
 }
 
