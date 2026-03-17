@@ -73,10 +73,9 @@ async def process_camera_message(msg):
             "frame_height": data.get("frame_height"),
         })
 
-    # "OK" btn -> confirm calibration, build homography and goal zones, reset kalman filter
     elif data.get("type") == "confirm_calibration":
         confirm_calibration()
-        await broadcast(controller, {"type": "calibration_ok"})
+        await broadcast(spectators, {"type": "calibration_ok"})
         await broadcast(cameras,    {"type": "calibration_ok"})
 
     elif data.get("type") == "calibration_failed":
@@ -143,7 +142,7 @@ async def handle_controller(ws):
                 await broadcast(cameras, {"type": "start_calibration"})
             elif data.get("type") == "confirm_calibration":
                 confirm_calibration()
-                await broadcast(controller, {"type": "calibration_ok"})
+                # await broadcast(controller, {"type": "calibration_ok"})
                 await broadcast(cameras,    {"type": "calibration_ok"})
     finally:
         controller.discard(ws)

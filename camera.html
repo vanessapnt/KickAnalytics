@@ -14,9 +14,6 @@
 
 <button id="btnStart" onclick="start()">Démarrer</button>
 <button id="btnStop" onclick="stop()" style="display:none">Arrêter</button>
-<button id="btnCalibrate" onclick="calibrate()" style="display:none">🎯 Calibrer</button>
-<button id="btnReady" onclick="confirmCalibration()" style="display:none">✅ Prêt</button>
-<button id="btnRetry" onclick="calibrate()" style="display:none">🔄 Relancer</button>
 
 <br><br>
 <video id="video" autoplay playsinline muted style="display:none"></video>
@@ -126,8 +123,6 @@ function calibrate()
 {
   const el = document.getElementById('terrainStatus');
   el.textContent = 'Détection...';
-  document.getElementById('btnReady').style.display = 'none';
-  document.getElementById('btnRetry').style.display = 'none';
   const corners = detectCorners();
   if (!corners || corners.some(c => !c)) // iterates through corners and stops when it finds true : one corner is null
   {
@@ -148,21 +143,7 @@ function calibrate()
     frame_height: video.videoHeight
   }));
   el.textContent = 'Vérifie le contour puis clique Prêt';
-  document.getElementById('btnReady').style.display = 'inline';
-  document.getElementById('btnRetry').style.display = 'inline';
-}
-
-function confirmCalibration()
-{
-  if (!pendingCorners)
-    return;
-  ws?.send(JSON.stringify({type: 'confirm_calibration'}));
-  calibrated     = true;
-  pendingCorners = null;
-  showPreview(null);
-  document.getElementById('btnReady').style.display    = 'none';
-  document.getElementById('btnRetry').style.display    = 'none';
-  document.getElementById('terrainStatus').textContent = '✅ Terrain calibré';
+  calibrated = false;
 }
 
 async function detectBall()
@@ -201,14 +182,14 @@ let detecting = false;
 
 // detecting acts as a mutex to avoid multiple concurrent inferences, so the page doesn't get overwhelmed
 async function ballCoordinatesLoop() {
-  if (!running) return;
+  if (!running || !calibrated) return;
   if (!detecting) {
     detecting = true;
     const d = await detectBall();
-    if (d) ws?.send(JSON.stringify({ type: 'position', x: d.cx, y: d.cy,
-      frame_width: video.videoWidth, frame_height: video.videoHeight,
-      conf: d.conf, ts: Date.now()
-    }));
+    if (d)
+    {
+      ws?.send(JSON.stringify({ type: 'position', x: d.cx, y: d.cy, frame_width: video.videoWidth, frame_height: video.videoHeight, conf: d.conf, ts: Date.now() }));
+    }
     detecting = false;
   }
   setTimeout(() => requestAnimationFrame(ballCoordinatesLoop), 100);
@@ -272,13 +253,17 @@ async function start()
       ws = new WebSocket(wsUrl);
       ws.onopen = () => {
         document.getElementById('status').textContent        = 'Connecté ✓';
-        document.getElementById('btnCalibrate').style.display = 'inline';
       };
       ws.onclose = handleWsClose;
       ws.onmessage = (e) => { // message received from server
         const d = JSON.parse(e.data);
         if (d.type === 'start_calibration')
           calibrate();
+        else if (d.type === 'calibration_ok') {
+          calibrated = true;
+          document.getElementById('terrainStatus').textContent = 'Terrain calibré ✓';
+          requestAnimationFrame(ballCoordinatesLoop);
+        }
       };
     }
 
@@ -317,9 +302,6 @@ function stop()
   document.getElementById('btnStart').disabled               = false;
   document.getElementById('btnStart').style.display          = 'inline';
   document.getElementById('btnStop').style.display           = 'none';
-  document.getElementById('btnCalibrate').style.display      = 'none';
-  document.getElementById('btnReady').style.display          = 'none';
-  document.getElementById('btnRetry').style.display          = 'none';
   document.getElementById('status').textContent              = 'Déconnecté';
   document.getElementById('terrainStatus').textContent       = 'Terrain non calibré';
 }
