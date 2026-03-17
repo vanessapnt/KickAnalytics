@@ -51,6 +51,7 @@ function connect()
   };
 
   ws.onmessage = (e) => {
+    console.log(e.data);
     const d = JSON.parse(e.data);
     if (d.type === 'camera_ready') {
       document.getElementById('status').textContent = '📱 Caméra prête';

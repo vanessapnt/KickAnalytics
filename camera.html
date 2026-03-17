@@ -146,24 +146,25 @@ function calibrate()
   calibrated = false;
 }
 
+const DETECT_SIZE = 640;
+const detectCanvas = new OffscreenCanvas(DETECT_SIZE, DETECT_SIZE);
+const detectCtx    = detectCanvas.getContext('2d');
+const inputTensor  = new Float32Array(3 * DETECT_SIZE * DETECT_SIZE);
 async function detectBall()
 {
   // modelRunner : ONNX modele runner executed with WebAssembly in the browser
   if (!modelRunner || !video.videoWidth)
     return null;
-  const SIZE = 640;
-  const off  = new OffscreenCanvas(SIZE, SIZE);
-  off.getContext('2d').drawImage(video, 0, 0, SIZE, SIZE);
-  const px = off.getContext('2d').getImageData(0, 0, SIZE, SIZE).data;
-  const inputTensor = new Float32Array(3 * SIZE * SIZE);
-  for (let i = 0; i < SIZE * SIZE; i++)
+  detectCtx.drawImage(video, 0, 0, DETECT_SIZE, DETECT_SIZE);
+  const px = detectCtx.getImageData(0, 0, DETECT_SIZE, DETECT_SIZE).data;
+  for (let i = 0; i < DETECT_SIZE * DETECT_SIZE; i++)
   {
     // one pixel with 4 channels RGBA is converted into 3 values R,G,B normalized between 0 and 1, and stored in a tensor format [R...R, G...G, B...B]
     inputTensor[i]                    = px[i * 4]     / 255; // R
-    inputTensor[i + SIZE * SIZE]      = px[i * 4 + 1] / 255; // G
-    inputTensor[i + 2 * SIZE * SIZE]  = px[i * 4 + 2] / 255; // B
+    inputTensor[i + DETECT_SIZE * DETECT_SIZE]      = px[i * 4 + 1] / 255; // G
+    inputTensor[i + 2 * DETECT_SIZE * DETECT_SIZE]  = px[i * 4 + 2] / 255; // B
   }
-  const res = await modelRunner.run({[modelRunner.inputNames[0]]: new ort.Tensor('float32', inputTensor, [1, 3, SIZE, SIZE])});
+  const res = await modelRunner.run({[modelRunner.inputNames[0]]: new ort.Tensor('float32', inputTensor, [1, 3, DETECT_SIZE, DETECT_SIZE])});
   const out = res[modelRunner.outputNames[0]].data;
   // out : [cx...cx, cy...cy, width...width, height...height, confidence...confidence]
   const ballNb = out.length / 5;
@@ -172,7 +173,7 @@ async function detectBall()
     const c = out[4 * ballNb + bestBall];
     if (c > bestConf) {
       bestConf = c;
-      best = {cx: out[bestBall]/SIZE*video.videoWidth, cy: out[ballNb+bestBall]/SIZE*video.videoHeight, conf: c};
+      best = {cx: out[bestBall]/DETECT_SIZE*video.videoWidth, cy: out[ballNb+bestBall]/DETECT_SIZE*video.videoHeight, conf: c};
     }
   }
   return best;
