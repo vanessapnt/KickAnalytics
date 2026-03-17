@@ -24,11 +24,12 @@ async def broadcast(targets, msg):
     data = json.dumps(msg)
     if not targets:
         return
-    for ws in targets.copy(): # err : Set changed size during iteration
+    async def send_safe(ws):
         try:
             await ws.send(data)
         except Exception:
             targets.discard(ws)
+    await asyncio.gather(*[send_safe(ws) for ws in targets.copy()])
 
 class RateLimiter:
     def __init__(self, max_per_sec):
@@ -82,6 +83,7 @@ async def process_camera_message(msg):
         await broadcast(controller, {"type": "calibration_failed"})
 
     elif data.get("type") == "position":
+        print(f"position reçue ts={data.get('ts')} → broadcast")
         # camera coordinates -> canvas coordinates
         cx, cy = apply_homography(data["x"], data["y"])
         if cx is None:

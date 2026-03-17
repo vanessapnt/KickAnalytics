@@ -146,7 +146,7 @@ function calibrate()
   calibrated = false;
 }
 
-const DETECT_SIZE = 640;
+const DETECT_SIZE = 640
 const detectCanvas = new OffscreenCanvas(DETECT_SIZE, DETECT_SIZE);
 const detectCtx    = detectCanvas.getContext('2d');
 const inputTensor  = new Float32Array(3 * DETECT_SIZE * DETECT_SIZE);
@@ -228,7 +228,9 @@ async function loadModel()
 
   // wasmPaths: tells ONNX Runtime where to find the .wasm computation engine files on the CDN
   ort.env.wasm.wasmPaths = 'https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.23.0/';
-  modelRunner = await ort.InferenceSession.create(buffer, { executionProviders: ['wasm'] });
+  modelRunner = await ort.InferenceSession.create(buffer, { 
+    executionProviders: ['webgl', 'wasm']
+  });
 }
 
 async function start()
