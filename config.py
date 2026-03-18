@@ -1,10 +1,9 @@
 import os
 
-FIELD_W        = None
-FIELD_H        = None
-GOAL_W         = None
-GOAL_OFFSET_X  = None
-GOAL_OFFSET_Y  = None
+FIELD_W = 70
+FIELD_H = 115
+GOAL_W = 20
+GOAL_DEPTH_CM = 5
 
 MAX_CONNECTIONS_PER_IP     = 5
 MAX_MESSAGES_PER_SEC_CAM   = 60

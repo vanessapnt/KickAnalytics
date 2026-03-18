@@ -185,8 +185,13 @@ async function start()
     // stream = await navigator.mediaDevices.getUserMedia({video: { facingMode: 'environment' }});
     // video.srcObject = stream;
 
-    video.src   = '/test.mp4';
-    video.loop  = true;
+    video.src   = '/test_shorter.mp4';
+    //video.loop  = true;
+    video.loop = false;
+    video.addEventListener('ended', () => {
+    running = false;
+    document.getElementById('status').textContent = 'Vidéo terminée';
+});
     video.muted = true;
     await video.play();
 

@@ -74,6 +74,8 @@ function connect()
     }
     if (d.type === 'calibration_ok') {
       document.getElementById('status').textContent = '🟢 Match en cours';
+      document.getElementById('scoreRed').textContent  = 0;
+      document.getElementById('scoreBlue').textContent = 0;
     }
     if (d.type === 'position') {
       drawBall(d.x, d.y);
@@ -87,7 +89,7 @@ function connect()
       }
     }
     if (d.type === 'goal') {
-      alert(d.team === 'red' ? '🔴 BUT Rouge !' : '🔵 BUT Bleu !');
+      // alert(d.team === 'red' ? '🔴 BUT Rouge !' : '🔵 BUT Bleu !');
       if (d.score) {
         document.getElementById('scoreRed').textContent  = d.score.red;
         document.getElementById('scoreBlue').textContent = d.score.blue;

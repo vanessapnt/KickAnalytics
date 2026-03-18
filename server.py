@@ -253,7 +253,7 @@ STATIC_FILES = {
     "/camera.html" : "camera.html",
     "/controller.html" : "controller.html",
     "/model.onnx": "model.onnx",
-    "/test.mp4" : "test.mp4",
+    "/test_shorter.mp4" : "test_shorter.mp4",
 }
 
 async def http_handler(path, headers):

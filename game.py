@@ -19,15 +19,16 @@ class GameState:
 game = GameState()
 
 def build_goal_zones():
-    if any(v is None for v in [FIELD_W, FIELD_H, GOAL_W, GOAL_OFFSET_Y]):
+    if any(v is None for v in [FIELD_W, FIELD_H, GOAL_W, GOAL_DEPTH_CM]):
         print("Field dimensions not set: goal detection disabled")
         return
-    offset_x = GOAL_OFFSET_X if GOAL_OFFSET_X else (FIELD_W - GOAL_W) / 2  # in cm
-    x1 = int(CANVAS_W * offset_x / FIELD_W) # in pix
+    depth_px = int(CANVAS_H * GOAL_DEPTH_CM / FIELD_H)
+    offset_x = (FIELD_W - GOAL_W) / 2
+    x1 = int(CANVAS_W * offset_x / FIELD_W)
     x2 = int(CANVAS_W * (offset_x + GOAL_W) / FIELD_W)
-    game.goal_top = {"y_line": 0, "x1": x1, "x2": x2}
-    game.goal_bottom = {"y_line": CANVAS_H, "x1": x1, "x2": x2}
-    print(f"Goals: x={x1}->{x2}, top post y={0}, bottom post y={CANVAS_H}")
+    game.goal_top    = {"y1": 0,                   "y2": depth_px,   "x1": x1, "x2": x2}
+    game.goal_bottom = {"y1": CANVAS_H - depth_px, "y2": CANVAS_H,   "x1": x1, "x2": x2}
+    print(f"Goals: x={x1}->{x2}, top y=0->{depth_px}, bottom y={CANVAS_H-depth_px}->{CANVAS_H}")
 
 # called when camera sends calibration_preview, before user confirms
 def store_pending_calibration(corners, fw, fh):
@@ -129,20 +130,13 @@ def check_goal(x, y):
     if game.goal_top is None:
         return None
 
-    yt = game.goal_top["y_line"]
-    yb = game.goal_bottom["y_line"]
+    in_top    = game.goal_top["x1"] <= x <= game.goal_top["x2"] and game.goal_top["y1"]    <= y <= game.goal_top["y2"]
+    in_bottom = game.goal_bottom["x1"] <= x <= game.goal_bottom["x2"] and game.goal_bottom["y1"] <= y <= game.goal_bottom["y2"]
 
-    on_top_line    = abs(y - yt) < 5 and between_posts(x, game.goal_top)
-    on_bottom_line = abs(y - yb) < 5 and between_posts(x, game.goal_bottom)
-
-    if on_top_line or on_bottom_line:
+    if in_top or in_bottom:
         if not game.ball_in_goal:
-            nx, ny = predict_next(x, y)
-            going_top    = on_top_line    and ny < yt
-            going_bottom = on_bottom_line and ny > yb
-            if going_top or going_bottom:
-                game.ball_in_goal = True
-                return "blue" if going_top else "red"
+            game.ball_in_goal = True
+            return "blue" if in_top else "red"
     else:
         game.ball_in_goal = False
 
