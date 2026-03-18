@@ -17,11 +17,8 @@
 
 <br><br>
 <video id="video" autoplay playsinline muted style="display:none"></video>
-<!-- preview canvas shows the captured frame + green corners overlay after calibrate() -->
 <canvas id="preview" style="max-width:100%; display:none"></canvas>
 
-<!-- imports onnxruntime library from CDN to run the model in the browser (cdnjs.com) -->
-<!-- onnxruntime-web: we use a JavaScript API, but the computations are done natively in the browser thanks to WASM -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.23.0/ort.min.js" integrity="sha512-A6Ot7qiW93XRv1tMX93Vhvlt1ysO/BMxx77BhipVszp9mByYfZ+2M+vo/ZLcTkGwkNO0J+atRybGXiiHy4yQ5Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
 <script>
@@ -35,13 +32,12 @@ const pCtx    = preview.getContext('2d');
 
 window.addEventListener('beforeunload', stop);
 
-// draws the frame + green quadrilateral on the preview canvas
 function showPreview(corners)
 {
   const W = video.videoWidth, H = video.videoHeight;
   preview.width  = W;
   preview.height = H;
-  pCtx.drawImage(video, 0, 0, W, H); // draw current frame
+  pCtx.drawImage(video, 0, 0, W, H);
   if (!corners) {
     preview.style.display = 'none';
     return;
@@ -59,7 +55,6 @@ function showPreview(corners)
   preview.style.display = 'block';
 }
 
-// captures current video frame + corners into a single image and returns it as a base64 string (jpeg format, quality 0.7)
 function capturePreview()
 {
   const W = video.videoWidth, H = video.videoHeight;
@@ -67,84 +62,31 @@ function capturePreview()
   tempCanvas.width  = W;
   tempCanvas.height = H;
   const tempCtx = tempCanvas.getContext('2d');
-  tempCtx.drawImage(preview, 0, 0, W, H); // preview already has frame + corners drawn
+  tempCtx.drawImage(preview, 0, 0, W, H);
   return tempCanvas.toDataURL('image/jpeg', 0.7);
 }
 
-function isGreen(r, g, b)
-{
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  if (max === 0) return false;
-  const s = (max - min) / max;
-  const h = max === g
-    ? 60 * ((b - r) / (max - min) + 2)
-    : max === r
-    ? 60 * ((g - b) / (max - min) % 6)
-    : 60 * ((r - g) / (max - min) + 4);
-  return h >= 60 && h <= 160 && s > 0.15;
-}
-
-function detectCorners()
+function captureFrame()
 {
   const W = video.videoWidth, H = video.videoHeight;
-  const off = new OffscreenCanvas(W, H);
-  off.getContext('2d').drawImage(video, 0, 0);
-  const px = off.getContext('2d').getImageData(0, 0, W, H).data; // [R,G,B,A, R,G,B,A, ...]
-  let tl = null, tr = null, br = null, bl = null; // [x,y]
-  let minSum = Infinity, maxSum = -Infinity, minDiff = Infinity, maxDiff = -Infinity;
-  let greenCount = 0;
-  for (let y = 0; y < H; y++)
-  {
-    for (let x = 0; x < W; x++)
-    {
-      const i = (y * W + x) * 4;
-      const r = px[i], g = px[i+1], b = px[i+2];
-      if (isGreen(r, g, b))
-      {
-        greenCount++;
-        const sum = x + y, diff = x - y;
-        if (sum  < minSum)  { minSum  = sum;  tl = [x,y]; } // low x and low y
-        if (sum  > maxSum)  { maxSum  = sum;  br = [x,y]; } // high x and high y
-        if (diff < minDiff) { minDiff = diff; bl = [x,y]; } // low x and high y
-        if (diff > maxDiff) { maxDiff = diff; tr = [x,y]; } // high x and low y
-      }
-    }
-  }
-  if (greenCount < W * H * 0.01)
-  {
-    console.log(`Green: ${greenCount}px / ${W*H}px total (${(greenCount/W/H*100).toFixed(1)}%)`);
-    return null;
-  }
-  console.log(`Corners detected: tl=${tl} tr=${tr} br=${br} bl=${bl} (green: ${greenCount}px)`);
-  return [tl, tr, br, bl];
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width  = W;
+  tempCanvas.height = H;
+  tempCanvas.getContext('2d').drawImage(video, 0, 0, W, H);
+  return tempCanvas.toDataURL('image/jpeg', 0.7);
 }
 
 function calibrate()
 {
   const el = document.getElementById('terrainStatus');
   el.textContent = 'Détection...';
-  const corners = detectCorners();
-  if (!corners || corners.some(c => !c)) // iterates through corners and stops when it finds true : one corner is null
-  {
-    el.textContent = 'Terrain non détecté';
-    showPreview(null);
-    ws?.send(JSON.stringify({type: 'calibration_failed'}));
-    return;
-  }
-  pendingCorners = corners;
-  showPreview(corners); // draw frame + corners on preview canvas
-  const image = capturePreview();
-
+  const frame = captureFrame();
   ws?.send(JSON.stringify({
-    type:         'calibration_preview',
-    image,
-    corners,
+    type:         'calibration_frame',
+    image:        frame,
     frame_width:  video.videoWidth,
     frame_height: video.videoHeight
   }));
-  el.textContent = 'Vérifie le contour puis clique Prêt';
-  calibrated = false;
 }
 
 const DETECT_SIZE = 640
@@ -161,9 +103,9 @@ async function detectBall()
   for (let i = 0; i < DETECT_SIZE * DETECT_SIZE; i++)
   {
     // one pixel with 4 channels RGBA is converted into 3 values R,G,B normalized between 0 and 1, and stored in a tensor format [R...R, G...G, B...B]
-    inputTensor[i]                    = px[i * 4]     / 255; // R
-    inputTensor[i + DETECT_SIZE * DETECT_SIZE]      = px[i * 4 + 1] / 255; // G
-    inputTensor[i + 2 * DETECT_SIZE * DETECT_SIZE]  = px[i * 4 + 2] / 255; // B
+    inputTensor[i]                               = px[i * 4]     / 255; // R
+    inputTensor[i + DETECT_SIZE * DETECT_SIZE]   = px[i * 4 + 1] / 255; // G
+    inputTensor[i + 2 * DETECT_SIZE * DETECT_SIZE] = px[i * 4 + 2] / 255; // B
   }
   const res = await modelRunner.run({[modelRunner.inputNames[0]]: new ort.Tensor('float32', inputTensor, [1, 3, DETECT_SIZE, DETECT_SIZE])});
   const out = res[modelRunner.outputNames[0]].data;
@@ -202,7 +144,7 @@ async function loadModel()
   const statusEl = document.getElementById('status');
   statusEl.textContent = 'Téléchargement du modèle...';
 
-  const res = await fetch('/model.onnx'); // fetch: sends HTTP GET to the server that served the page
+  const res = await fetch('/model.onnx');
   if (!res.ok) throw new Error('Modèle introuvable sur le serveur');
 
   // the response arrives as a stream, we read it chunk by chunk to show progress
@@ -229,7 +171,7 @@ async function loadModel()
 
   // wasmPaths: tells ONNX Runtime where to find the .wasm computation engine files on the CDN
   ort.env.wasm.wasmPaths = 'https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.23.0/';
-  modelRunner = await ort.InferenceSession.create(buffer, { 
+  modelRunner = await ort.InferenceSession.create(buffer, {
     executionProviders: ['webgl', 'wasm']
   });
 }
@@ -243,8 +185,8 @@ async function start()
     // stream = await navigator.mediaDevices.getUserMedia({video: { facingMode: 'environment' }});
     // video.srcObject = stream;
 
-    video.src  = '/test.mp4';
-    video.loop = true;
+    video.src   = '/test.mp4';
+    video.loop  = true;
     video.muted = true;
     await video.play();
 
@@ -256,15 +198,35 @@ async function start()
     {
       ws = new WebSocket(wsUrl);
       ws.onopen = () => {
-        document.getElementById('status').textContent        = 'Connecté ✓';
+        document.getElementById('status').textContent = 'Connecté ✓';
       };
       ws.onclose = handleWsClose;
       ws.onmessage = (e) => { // message received from server
         const d = JSON.parse(e.data);
         if (d.type === 'start_calibration')
           calibrate();
+        else if (d.type === 'calibration_preview') {
+          pendingCorners = d.corners;
+          showPreview(d.corners);
+          const image = capturePreview();
+          ws?.send(JSON.stringify({
+            type:         'calibration_preview',
+            image,
+            corners:      d.corners,
+            frame_width:  video.videoWidth,
+            frame_height: video.videoHeight
+          }));
+          document.getElementById('terrainStatus').textContent = 'Vérifie le contour puis clique Prêt';
+        }
+        else if (d.type === 'calibration_failed') {
+          document.getElementById('terrainStatus').textContent = 'Terrain non détecté';
+          showPreview(null);
+          ws?.send(JSON.stringify({type: 'calibration_failed'}));
+        }
         else if (d.type === 'calibration_ok') {
           calibrated = true;
+          pendingCorners = null;
+          showPreview(null);
           document.getElementById('terrainStatus').textContent = 'Terrain calibré ✓';
           requestAnimationFrame(ballCoordinatesLoop);
         }
@@ -284,12 +246,11 @@ async function start()
     running = true;
     document.getElementById('btnStart').style.display = 'none';
     document.getElementById('btnStop').style.display  = 'inline';
-    requestAnimationFrame(ballCoordinatesLoop);
   } catch (err) {
     stream?.getTracks().forEach(t => t.stop());
     stream = null;
-    document.getElementById('status').textContent    = '❌ Erreur : ' + err.message;
-    document.getElementById('btnStart').disabled = false;
+    document.getElementById('status').textContent = '❌ Erreur : ' + err.message;
+    document.getElementById('btnStart').disabled  = false;
   }
 }
 
@@ -303,11 +264,11 @@ function stop()
   stream = null;
   ws?.close();
   ws = null;
-  document.getElementById('btnStart').disabled               = false;
-  document.getElementById('btnStart').style.display          = 'inline';
-  document.getElementById('btnStop').style.display           = 'none';
-  document.getElementById('status').textContent              = 'Déconnecté';
-  document.getElementById('terrainStatus').textContent       = 'Terrain non calibré';
+  document.getElementById('btnStart').disabled         = false;
+  document.getElementById('btnStart').style.display    = 'inline';
+  document.getElementById('btnStop').style.display     = 'none';
+  document.getElementById('status').textContent        = 'Déconnecté';
+  document.getElementById('terrainStatus').textContent = 'Terrain non calibré';
 }
 </script>
 </body>

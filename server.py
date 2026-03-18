@@ -3,6 +3,9 @@ import websockets
 from pathlib import Path
 from collections import defaultdict
 import http
+import base64
+import numpy as np
+import cv2
 
 from config import *
 from game import (
@@ -20,7 +23,6 @@ ip_connections = defaultdict(int) # initialize to 0 for any new key
 
 controller    = set()
 
-# TODO
 async def broadcast(targets, msg):
     data = json.dumps(msg)
     if not targets:
@@ -54,19 +56,68 @@ def connection_allowed(ws):
         return False
     return True
 
+def detect_corners_cv2(image_b64, fw, fh):
+    img_bytes = base64.b64decode(image_b64.split(',')[1])
+    img_array = np.frombuffer(img_bytes, dtype=np.uint8)
+    frame     = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+    if frame is None:
+        return None
+
+    hsv  = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, (35, 20, 40), (85, 255, 255))
+
+    kernel = np.ones((15, 15), np.uint8)
+    mask   = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+    pts = cv2.findNonZero(mask)
+    if pts is None:
+        return None
+
+    hull   = cv2.convexHull(pts)
+    approx = cv2.approxPolyDP(hull, 0.02 * cv2.arcLength(hull, True), True)
+
+    if len(approx) != 4:
+        print(f"approxPolyDP found {len(approx)} points, expected 4")
+        return None
+
+    pts4 = approx.reshape(4, 2)
+    s    = pts4.sum(axis=1)
+    d    = np.diff(pts4, axis=1).flatten()
+    tl   = pts4[s.argmin()].tolist()
+    br   = pts4[s.argmax()].tolist()
+    tr   = pts4[d.argmin()].tolist()
+    bl   = pts4[d.argmax()].tolist()
+
+    print(f"Corners detected by OpenCV: tl={tl} tr={tr} br={br} bl={bl}")
+    return [tl, tr, br, bl]
+
 async def process_camera_message(msg):
     try:
         data = json.loads(msg)
     except json.JSONDecodeError:
         return
 
-    # "Calibrer" btn (camera) -> preview to spectator screen
-    if data.get("type") == "calibration_preview":
-        store_pending_calibration(
-            data.get("corners"),
+    if data.get("type") == "calibration_frame":
+        corners = detect_corners_cv2(
+            data.get("image"),
             data.get("frame_width"),
             data.get("frame_height"),
         )
+        if not corners:
+            await broadcast(cameras, {"type": "calibration_failed"})
+            return
+        store_pending_calibration(
+            corners,
+            data.get("frame_width"),
+            data.get("frame_height"),
+        )
+        await broadcast(cameras, {
+            "type":    "calibration_preview",
+            "corners": corners,
+        })
+
+    # "Calibrer" btn (camera) -> preview to spectator screen
+    elif data.get("type") == "calibration_preview":
         await broadcast(controller, {
             "type":         "calibration_preview",
             "image":        data.get("image"),
@@ -75,16 +126,10 @@ async def process_camera_message(msg):
             "frame_height": data.get("frame_height"),
         })
 
-    elif data.get("type") == "confirm_calibration":
-        confirm_calibration()
-        await broadcast(spectators, {"type": "calibration_ok"})
-        await broadcast(cameras,    {"type": "calibration_ok"})
-
     elif data.get("type") == "calibration_failed":
         await broadcast(controller, {"type": "calibration_failed"})
 
     elif data.get("type") == "position":
-        print(f"position reçue ts={data.get('ts')} → broadcast")
         # camera coordinates -> canvas coordinates
         cx, cy = apply_homography(data["x"], data["y"])
         if cx is None:
@@ -145,8 +190,8 @@ async def handle_controller(ws):
                 await broadcast(cameras, {"type": "start_calibration"})
             elif data.get("type") == "confirm_calibration":
                 confirm_calibration()
-                # await broadcast(controller, {"type": "calibration_ok"})
                 await broadcast(cameras,    {"type": "calibration_ok"})
+                await broadcast(spectators, {"type": "calibration_ok"})
     finally:
         controller.discard(ws)
         print(f"Controller déconnecté ({ip})")
@@ -160,11 +205,9 @@ async def handle_spectator(ws):
     spectators.add(ws)
     print(f"Spectator connected ({ip}) — total: {len(spectators)}")
     await sync_client_state(ws)
-    limiter = RateLimiter(MAX_MESSAGES_PER_SEC_SPECT)
     try:
         async for msg in ws: # stops when StopAsyncIteration is raised by await self.recv() in __anext__(self) in ws when the connection is closed
-            if limiter.allow():
-                await process_spectator_message(msg)
+            pass
     finally:
         spectators.discard(ws) # websocket closed or error, remove from spectators set
         print(f"Spectator disconnected ({ip})")
