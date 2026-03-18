@@ -129,17 +129,20 @@ async def process_camera_message(msg):
     elif data.get("type") == "calibration_failed":
         await broadcast(controller, {"type": "calibration_failed"})
 
+    elif data.get("type") == "replay":
+        frames = data.get("frames", [])
+        print(f"replay reçu: {len(frames)} frames")
+        await broadcast(spectators, {
+            "type":   "replay",
+            "frames": data.get("frames"),
+        })
+
     elif data.get("type") == "position":
         # camera coordinates -> canvas coordinates
-        print(f"raw ball: x={data['x']:.0f} y={data['y']:.0f}")
         cx, cy = apply_homography(data["x"], data["y"])
-        print(f"homography: cx={cx:.1f} cy={cy:.1f}")
-        # if cx is None:
-        #     return
         if cx is None or not (0 <= cx <= CANVAS_W and 0 <= cy <= CANVAS_H):
             return
         kx, ky = kalman_update(cx, cy)
-        print(f"kalman: kx={kx:.1f} ky={ky:.1f}")
         # normalize to [0, 1] for the spectator canvas
         nx = kx / CANVAS_W
         ny = ky / CANVAS_H
@@ -147,6 +150,7 @@ async def process_camera_message(msg):
         if scorer:
             game.score[scorer] += 1
             await broadcast(spectators, {"type": "goal", "team": scorer, "score": dict(game.score)})
+            await broadcast(cameras, {"type": "send_replay"})
         await broadcast(spectators, {
             "type":  "position",
             "x":     nx,
@@ -253,7 +257,7 @@ STATIC_FILES = {
     "/camera.html" : "camera.html",
     "/controller.html" : "controller.html",
     "/model.onnx": "model.onnx",
-    "/test_shorter.mp4" : "test_shorter.mp4",
+    "/test.mp4" : "test.mp4",
 }
 
 async def http_handler(path, headers):
@@ -288,6 +292,7 @@ async def main():
         "0.0.0.0", # listen on all interfaces, not just localhost
         PORT,
         process_request=http_handler,
+        max_size=5 * 1024 * 1024,
     ):
         await asyncio.Future()
 

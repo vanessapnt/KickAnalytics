@@ -18,6 +18,8 @@
   <p>Rouge : <span id="scoreRed">0</span> — Bleu : <span id="scoreBlue">0</span></p>
   <p>x=<span id="sX">—</span> y=<span id="sY">—</span> conf=<span id="sConf">—</span> latence=<span id="sLat">—</span></p>
   <canvas id="terrain" width="450" height="800" style="border:1px solid #000; max-width:100%"></canvas>
+  <br><br>
+  <img id="replayImg" style="max-width:100%; width:100%; border:3px solid red" />
 </div>
 
 <div id="section-jouer" style="display:none">
@@ -38,8 +40,9 @@ function show(section)
   if (section === 'jouer') disconnect();
 }
 
-const canvas = document.getElementById('terrain');
-const ctx    = canvas.getContext('2d');
+const canvas    = document.getElementById('terrain');
+const ctx       = canvas.getContext('2d');
+const replayImg = document.getElementById('replayImg');
 
 function drawBall(nx, ny) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -67,7 +70,6 @@ function connect()
   };
 
   ws.onmessage = (e) => {
-    console.log(e.data);
     const d = JSON.parse(e.data);
     if (d.type === 'camera_ready') {
       document.getElementById('status').textContent = '📱 Caméra prête';
@@ -89,15 +91,23 @@ function connect()
       }
     }
     if (d.type === 'goal') {
-      // alert(d.team === 'red' ? '🔴 BUT Rouge !' : '🔵 BUT Bleu !');
       if (d.score) {
         document.getElementById('scoreRed').textContent  = d.score.red;
         document.getElementById('scoreBlue').textContent = d.score.blue;
       }
     }
-    if (d.type === 'score') {
-      document.getElementById('scoreRed').textContent  = d.score.red;
-      document.getElementById('scoreBlue').textContent = d.score.blue;
+    if (d.type === 'replay') {
+      replayImg.style.display = 'block';
+      let i = 0;
+      function showNext() {
+        if (i >= d.frames.length) {
+          replayImg.style.display = 'none';
+          return;
+        }
+        replayImg.onload = showNext;
+        replayImg.src = d.frames[i++];
+      }
+      showNext();
     }
   };
 }

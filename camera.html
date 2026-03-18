@@ -30,6 +30,10 @@ const video   = document.getElementById('video');
 const preview = document.getElementById('preview');
 const pCtx    = preview.getContext('2d');
 
+const REPLAY_BEFORE = 10;
+const REPLAY_AFTER  = 10;
+const frameBuffer   = [];
+
 window.addEventListener('beforeunload', stop);
 
 function showPreview(corners)
@@ -74,6 +78,17 @@ function captureFrame()
   tempCanvas.height = H;
   tempCanvas.getContext('2d').drawImage(video, 0, 0, W, H);
   return tempCanvas.toDataURL('image/jpeg', 0.7);
+}
+
+function captureFrameSmall()
+{
+  const W = Math.round(video.videoWidth / 2);
+  const H = Math.round(video.videoHeight / 2);
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width  = W;
+  tempCanvas.height = H;
+  tempCanvas.getContext('2d').drawImage(video, 0, 0, W, H);
+  return tempCanvas.toDataURL('image/jpeg', 0.4);
 }
 
 function calibrate()
@@ -129,6 +144,10 @@ async function ballCoordinatesLoop() {
   if (!running || !calibrated) return;
   if (!detecting) {
     detecting = true;
+    const frame = captureFrameSmall();
+    frameBuffer.push(frame);
+    if (frameBuffer.length > REPLAY_BEFORE + REPLAY_AFTER)
+      frameBuffer.shift();
     const d = await detectBall();
     if (d)
     {
@@ -185,13 +204,12 @@ async function start()
     // stream = await navigator.mediaDevices.getUserMedia({video: { facingMode: 'environment' }});
     // video.srcObject = stream;
 
-    video.src   = '/test_shorter.mp4';
-    //video.loop  = true;
+    video.src   = '/test.mp4';
     video.loop = false;
     video.addEventListener('ended', () => {
-    running = false;
-    document.getElementById('status').textContent = 'Vidéo terminée';
-});
+      running = false;
+      document.getElementById('status').textContent = 'Vidéo terminée';
+    });
     video.muted = true;
     await video.play();
 
@@ -234,6 +252,21 @@ async function start()
           showPreview(null);
           document.getElementById('terrainStatus').textContent = 'Terrain calibré ✓';
           requestAnimationFrame(ballCoordinatesLoop);
+        }
+        else if (d.type === 'send_replay') {
+          const beforeFrames = [...frameBuffer];
+          let remaining = REPLAY_AFTER;
+          const afterFrames = [];
+          const interval = setInterval(() => {
+            afterFrames.push(captureFrameSmall());
+            if (--remaining === 0) {
+              clearInterval(interval);
+              ws?.send(JSON.stringify({
+                type:   'replay',
+                frames: [...beforeFrames, ...afterFrames],
+              }));
+            }
+          }, 100);
         }
       };
     }
