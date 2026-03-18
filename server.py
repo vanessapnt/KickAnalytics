@@ -131,10 +131,15 @@ async def process_camera_message(msg):
 
     elif data.get("type") == "position":
         # camera coordinates -> canvas coordinates
+        print(f"raw ball: x={data['x']:.0f} y={data['y']:.0f}")
         cx, cy = apply_homography(data["x"], data["y"])
-        if cx is None:
+        print(f"homography: cx={cx:.1f} cy={cy:.1f}")
+        # if cx is None:
+        #     return
+        if cx is None or not (0 <= cx <= CANVAS_W and 0 <= cy <= CANVAS_H):
             return
         kx, ky = kalman_update(cx, cy)
+        print(f"kalman: kx={kx:.1f} ky={ky:.1f}")
         # normalize to [0, 1] for the spectator canvas
         nx = kx / CANVAS_W
         ny = ky / CANVAS_H

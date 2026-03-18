@@ -1,5 +1,6 @@
 import numpy as np
 from config import *
+import cv2
 
 class GameState:
     def __init__(self):
@@ -45,36 +46,44 @@ def confirm_calibration():
     game.pending_fh      = None
     return True
 
+# def compute_homography(corners, fw, fh):
+#     print(f"src corners: {corners}")
+#     print(f"dst corners: [[0,0],[{CANVAS_W},0],[{CANVAS_W},{CANVAS_H}],[0,{CANVAS_H}]]")
+#     # src : field corners in the frame -> dst : canvas corners
+#     src = np.float32(corners)
+#     dst = np.float32([[0, 0], [CANVAS_W, 0], [CANVAS_W, CANVAS_H], [0, CANVAS_H]])
+#     A = []
+#     for i in range(4):
+#     # 8 linear equations for 8 unknowns (H * src = dst)
+#     # H * [sx, sy, 1] = [px, py, pz]  →  [px/pz, py/pz] = [dx, dy]
+#     #  [[h0, h1, h2],     [sx]     [h0*sx + h1*sy + h2*1]   [px]
+#     #   [h3, h4, h5],  *  [sy]  =  [h3*sx + h4*sy + h5*1] = [py]
+#     #   [h6, h7, 1 ]]     [1 ]     [h6*sx + h7*sy + 1*1 ]   [pz]
+#         sx, sy = src[i]
+#         dx, dy = dst[i]
+#         A.append([-sx, -sy, -1,   0,   0,  0, sx*dx, sy*dx, dx])
+#         A.append([  0,   0,  0, -sx, -sy, -1, sx*dy, sy*dy, dy])
+#     A   = np.array(A, dtype=float)
+#     aug = np.hstack([A[:8, :8], A[:8, 8:9]])
+#     for col in range(8):
+#         mr = col + np.argmax(np.abs(aug[col:, col]))
+#         aug[[col, mr]] = aug[[mr, col]]
+#         aug[col] /= aug[col, col]
+#         for row in range(8):
+#             if row != col:
+#                 aug[row] -= aug[row, col] * aug[col]
+#     h = aug[:, 8]
+#     game.H_matrix = np.array([
+#         [h[0], h[1], h[2]],
+#         [h[3], h[4], h[5]],
+#         [h[6], h[7], 1.0 ],
+#     ])
+#     print(f"Homography computed from frame {fw}x{fh}")
+
 def compute_homography(corners, fw, fh):
-    # src : field corners in the frame -> dst : canvas corners
     src = np.float32(corners)
     dst = np.float32([[0, 0], [CANVAS_W, 0], [CANVAS_W, CANVAS_H], [0, CANVAS_H]])
-    A = []
-    for i in range(4):
-    # 8 linear equations for 8 unknowns (H * src = dst)
-    # H * [sx, sy, 1] = [px, py, pz]  →  [px/pz, py/pz] = [dx, dy]
-    #  [[h0, h1, h2],     [sx]     [h0*sx + h1*sy + h2*1]   [px]
-    #   [h3, h4, h5],  *  [sy]  =  [h3*sx + h4*sy + h5*1] = [py]
-    #   [h6, h7, 1 ]]     [1 ]     [h6*sx + h7*sy + 1*1 ]   [pz]
-        sx, sy = src[i]
-        dx, dy = dst[i]
-        A.append([-sx, -sy, -1,   0,   0,  0, sx*dx, sy*dx, dx])
-        A.append([  0,   0,  0, -sx, -sy, -1, sx*dy, sy*dy, dy])
-    A   = np.array(A, dtype=float)
-    aug = np.hstack([A[:8, :8], A[:8, 8:9]])
-    for col in range(8):
-        mr = col + np.argmax(np.abs(aug[col:, col]))
-        aug[[col, mr]] = aug[[mr, col]]
-        aug[col] /= aug[col, col]
-        for row in range(8):
-            if row != col:
-                aug[row] -= aug[row, col] * aug[col]
-    h = aug[:, 8]
-    game.H_matrix = np.array([
-        [h[0], h[1], h[2]],
-        [h[3], h[4], h[5]],
-        [h[6], h[7], 1.0 ],
-    ])
+    game.H_matrix = cv2.getPerspectiveTransform(src, dst)
     print(f"Homography computed from frame {fw}x{fh}")
 
 def apply_homography(px, py):

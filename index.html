@@ -17,6 +17,7 @@
   <p id="status">Déconnecté</p>
   <p>Rouge : <span id="scoreRed">0</span> — Bleu : <span id="scoreBlue">0</span></p>
   <p>x=<span id="sX">—</span> y=<span id="sY">—</span> conf=<span id="sConf">—</span> latence=<span id="sLat">—</span></p>
+  <canvas id="terrain" width="450" height="800" style="border:1px solid #000; max-width:100%"></canvas>
 </div>
 
 <div id="section-jouer" style="display:none">
@@ -35,6 +36,21 @@ function show(section)
   document.getElementById(`section-${section}`).style.display = 'block';
 	if (section === 'regarder') connect();
   if (section === 'jouer') disconnect();
+}
+
+const canvas = document.getElementById('terrain');
+const ctx    = canvas.getContext('2d');
+
+function drawBall(nx, ny) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#4a7c4e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const x = nx * canvas.width;
+  const y = ny * canvas.height;
+  ctx.beginPath();
+  ctx.arc(x, y, 10, 0, Math.PI * 2);
+  ctx.fillStyle = 'white';
+  ctx.fill();
 }
 
 function connect()
@@ -60,6 +76,7 @@ function connect()
       document.getElementById('status').textContent = '🟢 Match en cours';
     }
     if (d.type === 'position') {
+      drawBall(d.x, d.y);
       if (d.ts) document.getElementById('sLat').textContent = (Date.now() - d.ts) + 'ms';
       document.getElementById('sX').textContent    = d.x?.toFixed(3) ?? '—';
       document.getElementById('sY').textContent    = d.y?.toFixed(3) ?? '—';
