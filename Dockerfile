@@ -15,6 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # ignored by google cloud build, but needed for local testing
+# 8080 : HTTP fichiers statiques
+# 8081 : WebSocket
 EXPOSE 8080
+EXPOSE 8081
 
 CMD ["python", "-u", "server.py"]

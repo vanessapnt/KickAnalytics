@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Contrôleur</title>
+<script>
+function getWsBase() {
+  const proto    = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws_port  = parseInt(window.location.port || (proto === 'wss' ? 443 : 80)) + 1;
+  return `${proto}://${window.location.hostname}:${ws_port}`;
+}
+</script>
 </head>
 <body>
 
@@ -28,10 +35,10 @@ const btnReady     = document.getElementById('btnReady');
 const btnRetry     = document.getElementById('btnRetry');
 const previewImg   = document.getElementById('previewImg');
 
-function connect()
+async function connect()
 {
-  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${window.location.host}/controller`);
+  const base = getWsBase();
+  ws = new WebSocket(`${base}/controller`);
   btnCalibrate.disabled = true;
 
   ws.onopen = () => document.getElementById('status').textContent = 'Connecté ✓';
@@ -71,16 +78,22 @@ function connect()
       btnRetry.style.display   = 'none';
       document.getElementById('status').textContent = '❌ Échec détection — réessaie';
     }
-    if (d.type === 'score') {
-      document.getElementById('scoreRed').textContent  = d.score.red;
-      document.getElementById('scoreBlue').textContent = d.score.blue;
-    }
     if (d.type === 'goal') {
       alert(d.team === 'red' ? '🔴 BUT Rouge !' : '🔵 BUT Bleu !');
       if (d.score) {
         document.getElementById('scoreRed').textContent  = d.score.red;
         document.getElementById('scoreBlue').textContent = d.score.blue;
       }
+    }
+    if (d.type === 'match_end') {
+      alert(
+        '🏁 Match terminé !\n' +
+        'Score final : Rouge ' + d.score.red + ' – Bleu ' + d.score.blue
+      );
+      document.getElementById('scoreRed').textContent  = d.score.red;
+      document.getElementById('scoreBlue').textContent = d.score.blue;
+      document.getElementById('status').textContent    = '🏁 Match terminé';
+      btnCalibrate.disabled = true;
     }
   };
 }

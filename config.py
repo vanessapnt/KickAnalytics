@@ -11,5 +11,6 @@ MAX_MESSAGES_PER_SEC_SPECT = 5
 MAX_SPECTATORS             = 20
 
 PORT     = int(os.environ.get('PORT', 8080))
+WS_PORT  = PORT + 1
 CANVAS_W = 450
 CANVAS_H = 800

@@ -1,6 +1,6 @@
-IMAGE_NAME = kick-analytics
-PORT_CONTAINER = $${PORT:-8080}
-PORT_HOST = 8000
+IMAGE_NAME   = kick-analytics
+HTTP_PORT    = 8000
+WS_PORT      = 8001
 
 -include .env
 export
@@ -13,7 +13,7 @@ info:
 	@echo "   make install-ngrok     # Install ngrok + add authtoken"
 	@echo ""
 	@echo "🧪 LOCAL TESTING :"
-	@echo "   make test              # Build + run app → http://localhost:$(PORT_HOST)"
+	@echo "   make test              # Build + run app → http://localhost:$(HTTP_PORT)"
 	@echo ""
 	@echo "📱 LOCAL TESTING WITH PHONE :"
 	@echo "   1. make test           # Terminal 1 — start container"
@@ -48,14 +48,15 @@ install-ngrok:
 
 build:
 	docker build -t $(IMAGE_NAME) .
+# localhost:8000 -> container:8080 (HTTP static files)
+# localhost:8001 -> container:8081 (WebSocket)
 
-# localhost:8000 -> container:8080 (server is listening on 8080)
 run-local:
-	docker run -p $(PORT_HOST):$(PORT_CONTAINER) $(IMAGE_NAME)
-
+	docker run -p $(HTTP_PORT):8080 -p $(WS_PORT):8081 $(IMAGE_NAME)
 # phone <- HTTPS -> ngrok <- HTTP -> container
+
 tunnel:
-	ngrok http $(PORT_HOST)
+	ngrok http $(HTTP_PORT)
 
 gcloud-auth:
 	gcloud auth login

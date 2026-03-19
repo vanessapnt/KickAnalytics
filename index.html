@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KickAnalytics</title>
+<script>
+function getWsBase() {
+  const proto    = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws_port  = parseInt(window.location.port || (proto === 'wss' ? 443 : 80)) + 1;
+  return `${proto}://${window.location.hostname}:${ws_port}`;
+}
+</script>
 </head>
 <body>
 
@@ -56,11 +63,30 @@ function drawBall(nx, ny) {
   ctx.fill();
 }
 
-function connect()
+function drawHeatmap(heatmap) {
+  const rows = heatmap.length;
+  const cols = heatmap[0].length;
+
+  const cellW = canvas.width / cols;
+  const cellH = canvas.height / rows;
+
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const val = heatmap[y][x];
+      if (val > 0) {
+        const intensity = Math.min(val / 10, 1);
+        ctx.fillStyle = `rgba(255,0,0,${intensity})`;
+        ctx.fillRect(x*cellW, y*cellH, cellW, cellH);
+      }
+    }
+  }
+}
+
+async function connect()
 {
   if (ws) return;
-  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${window.location.host}/`);
+  const base = getWsBase();
+  ws = new WebSocket(`${base}/`);
 
   ws.onopen = () => document.getElementById('status').textContent = 'Connecté ✓';
 
@@ -79,6 +105,9 @@ function connect()
       document.getElementById('scoreRed').textContent  = 0;
       document.getElementById('scoreBlue').textContent = 0;
     }
+    if (d.type === 'calibration_failed') {
+      document.getElementById('status').textContent = '❌ Calibration échouée';
+    }
     if (d.type === 'position') {
       drawBall(d.x, d.y);
       if (d.ts) document.getElementById('sLat').textContent = (Date.now() - d.ts) + 'ms';
@@ -95,6 +124,15 @@ function connect()
         document.getElementById('scoreRed').textContent  = d.score.red;
         document.getElementById('scoreBlue').textContent = d.score.blue;
       }
+    }
+    if (d.type === 'match_end') {
+      alert(
+        "🏁 Match terminé !\n" +
+        "Score: Rouge " + d.score.red + " - Bleu " + d.score.blue + "\n\n" +
+        "⚡ Vitesse max: " + d.stats.max_speed.toFixed(1)
+      );
+
+      drawHeatmap(d.stats.heatmap);
     }
     if (d.type === 'replay') {
       replayImg.style.display = 'block';

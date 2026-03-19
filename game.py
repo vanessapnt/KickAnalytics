@@ -30,7 +30,6 @@ def build_goal_zones():
     game.goal_bottom = {"y1": CANVAS_H - depth_px, "y2": CANVAS_H,   "x1": x1, "x2": x2}
     print(f"Goals: x={x1}->{x2}, top y=0->{depth_px}, bottom y={CANVAS_H-depth_px}->{CANVAS_H}")
 
-# called when camera sends calibration_preview, before user confirms
 def store_pending_calibration(corners, fw, fh):
     game.pending_corners = corners
     game.pending_fw      = fw
@@ -47,40 +46,6 @@ def confirm_calibration():
     game.pending_fh      = None
     return True
 
-# def compute_homography(corners, fw, fh):
-#     print(f"src corners: {corners}")
-#     print(f"dst corners: [[0,0],[{CANVAS_W},0],[{CANVAS_W},{CANVAS_H}],[0,{CANVAS_H}]]")
-#     # src : field corners in the frame -> dst : canvas corners
-#     src = np.float32(corners)
-#     dst = np.float32([[0, 0], [CANVAS_W, 0], [CANVAS_W, CANVAS_H], [0, CANVAS_H]])
-#     A = []
-#     for i in range(4):
-#     # 8 linear equations for 8 unknowns (H * src = dst)
-#     # H * [sx, sy, 1] = [px, py, pz]  →  [px/pz, py/pz] = [dx, dy]
-#     #  [[h0, h1, h2],     [sx]     [h0*sx + h1*sy + h2*1]   [px]
-#     #   [h3, h4, h5],  *  [sy]  =  [h3*sx + h4*sy + h5*1] = [py]
-#     #   [h6, h7, 1 ]]     [1 ]     [h6*sx + h7*sy + 1*1 ]   [pz]
-#         sx, sy = src[i]
-#         dx, dy = dst[i]
-#         A.append([-sx, -sy, -1,   0,   0,  0, sx*dx, sy*dx, dx])
-#         A.append([  0,   0,  0, -sx, -sy, -1, sx*dy, sy*dy, dy])
-#     A   = np.array(A, dtype=float)
-#     aug = np.hstack([A[:8, :8], A[:8, 8:9]])
-#     for col in range(8):
-#         mr = col + np.argmax(np.abs(aug[col:, col]))
-#         aug[[col, mr]] = aug[[mr, col]]
-#         aug[col] /= aug[col, col]
-#         for row in range(8):
-#             if row != col:
-#                 aug[row] -= aug[row, col] * aug[col]
-#     h = aug[:, 8]
-#     game.H_matrix = np.array([
-#         [h[0], h[1], h[2]],
-#         [h[3], h[4], h[5]],
-#         [h[6], h[7], 1.0 ],
-#     ])
-#     print(f"Homography computed from frame {fw}x{fh}")
-
 def compute_homography(corners, fw, fh):
     src = np.float32(corners)
     dst = np.float32([[0, 0], [CANVAS_W, 0], [CANVAS_W, CANVAS_H], [0, CANVAS_H]])
@@ -93,17 +58,14 @@ def apply_homography(px, py):
     p = game.H_matrix @ np.array([px, py, 1.0])
     return float(p[0] / p[2]), float(p[1] / p[2])
 
-# state transition matrix : x(t+1) = F * x(t)  (constant velocity model)
 F  = np.array([[1,0,1,0],[0,1,0,1],[0,0,1,0],[0,0,0,1]], float)
-Hk = np.array([[1,0,0,0],[0,1,0,0]], float) # observation matrix : we only observe x and y
-Q  = np.eye(4) * 0.1  # process noise
-R  = np.eye(2) * 5.0  # measurement noise
+Hk = np.array([[1,0,0,0],[0,1,0,0]], float)
+Q  = np.eye(4) * 0.1
+R  = np.eye(2) * 5.0
 
 def kalman_update(mx, my):
-    # predict
     game.kx = F @ game.kx
     game.P  = F @ game.P @ F.T + Q
-    # update
     z = np.array([[mx], [my]])
     S = Hk @ game.P @ Hk.T + R
     K = game.P @ Hk.T @ np.linalg.inv(S)

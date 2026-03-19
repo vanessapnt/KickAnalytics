@@ -1,85 +1,81 @@
-import asyncio, json
+import asyncio, json, os, mimetypes
 import websockets
+from aiohttp import web
 from pathlib import Path
 from collections import defaultdict
-import http
 import base64
 import numpy as np
 import cv2
+import onnxruntime as ort
+import math
 
 from config import *
 from game import (
     game,
-    store_pending_calibration,
-    confirm_calibration,
     apply_homography,
     kalman_update,
     check_goal,
+    store_pending_calibration,
+    confirm_calibration,
 )
 
-cameras        = set()
-spectators     = set()
-ip_connections = defaultdict(int) # initialize to 0 for any new key
+GOALS_TO_WIN = 5
+match_over = False
+ball_history = []
 
-controller    = set()
+print("Loading ONNX model...")
+sess = ort.InferenceSession("model.onnx")
+input_name = sess.get_inputs()[0].name
+print("Model loaded ✓")
+
+frame_queue: asyncio.Queue = None
+
+cameras     = set()
+controllers = set()
+spectators  = set()
 
 async def broadcast(targets, msg):
     data = json.dumps(msg)
-    if not targets:
-        return
-    async def send_safe(ws):
-        try:
-            await ws.send(data)
-        except Exception:
-            targets.discard(ws)
-    await asyncio.gather(*[send_safe(ws) for ws in targets.copy()])
+    await asyncio.gather(
+        *[ws.send(data) for ws in targets.copy() if not ws.closed],
+        return_exceptions=True
+    )
 
-class RateLimiter:
-    def __init__(self, max_per_sec):
-        self.max      = max_per_sec
-        self.count    = 0
-        self.reset_at = asyncio.get_running_loop().time() + 1
-
-    def allow(self):
-        now = asyncio.get_running_loop().time()
-        if now > self.reset_at:
-            self.count    = 0
-            self.reset_at = now + 1
-        self.count += 1
-        return self.count <= self.max
-
-# Limits the number of simultaneous connections per IP to prevent abuse or overload
-def connection_allowed(ws):
-    ip = ws.remote_address[0] # ws.remote_address -> tuple (ip, port)
-    if ip_connections[ip] >= MAX_CONNECTIONS_PER_IP:
-        print(f"IP blocked: {ip}")
-        return False
-    return True
-
-def detect_corners_cv2(image_b64, fw, fh):
+def decode_base64_to_cv2(image_b64):
     img_bytes = base64.b64decode(image_b64.split(',')[1])
     img_array = np.frombuffer(img_bytes, dtype=np.uint8)
-    frame     = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-    if frame is None:
-        return None
+    return cv2.imdecode(img_array, cv2.IMREAD_COLOR)
 
+def detect_ball(frame):
+    img = cv2.resize(frame, (640, 640))
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img = img.astype(np.float32) / 255.0
+    img = np.transpose(img, (2, 0, 1))
+    img = np.expand_dims(img, 0)
+
+    preds = sess.run(None, {input_name: img})[0][0]
+
+    best_idx = np.argmax(preds[4])
+    conf = float(preds[4][best_idx])
+
+    if conf < 0.35:
+        return None, None, conf
+
+    return float(preds[0][best_idx]), float(preds[1][best_idx]), conf
+
+def detect_field_corners(frame):
     hsv  = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, (35, 20, 40), (85, 255, 255))
-
     kernel = np.ones((15, 15), np.uint8)
     mask   = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-
     pts = cv2.findNonZero(mask)
     if pts is None:
         return None
-
     hull   = cv2.convexHull(pts)
     approx = cv2.approxPolyDP(hull, 0.02 * cv2.arcLength(hull, True), True)
-
     if len(approx) != 4:
-        print(f"approxPolyDP found {len(approx)} points, expected 4")
+        print(f"[CALIB] approxPolyDP found {len(approx)} points, expected 4")
         return None
-
     pts4 = approx.reshape(4, 2)
     s    = pts4.sum(axis=1)
     d    = np.diff(pts4, axis=1).flatten()
@@ -87,217 +83,258 @@ def detect_corners_cv2(image_b64, fw, fh):
     br   = pts4[s.argmax()].tolist()
     tr   = pts4[d.argmin()].tolist()
     bl   = pts4[d.argmax()].tolist()
-
-    print(f"Corners detected by OpenCV: tl={tl} tr={tr} br={br} bl={bl}")
+    print(f"[CALIB] corners: tl={tl} tr={tr} br={br} bl={bl}")
     return [tl, tr, br, bl]
 
-async def process_camera_message(msg):
-    try:
-        data = json.loads(msg)
-    except json.JSONDecodeError:
-        return
+def compute_stats():
+    if len(ball_history) < 2:
+        return {}
 
-    if data.get("type") == "calibration_frame":
-        corners = detect_corners_cv2(
-            data.get("image"),
-            data.get("frame_width"),
-            data.get("frame_height"),
-        )
-        if not corners:
-            await broadcast(cameras, {"type": "calibration_failed"})
+    speeds  = []
+    heatmap = np.zeros((20, 40))
+    max_speed    = 0
+    best_shot    = None
+    best_defense = None
+    max_decel    = 0
+
+    for i in range(1, len(ball_history)):
+        p1 = ball_history[i - 1]
+        p2 = ball_history[i]
+
+        dx = p2["x"] - p1["x"]
+        dy = p2["y"] - p1["y"]
+        dt = max((p2["t"] - p1["t"]) / 1000, 0.001)
+
+        speed = math.sqrt(dx * dx + dy * dy) / dt
+        speeds.append(speed)
+
+        gx = int(p2["x"] / CANVAS_W * 40)
+        gy = int(p2["y"] / CANVAS_H * 20)
+        if 0 <= gx < 40 and 0 <= gy < 20:
+            heatmap[gy][gx] += 1
+
+        if speed > max_speed:
+            max_speed = speed
+            best_shot = p2
+
+        if i > 1:
+            decel     = speeds[-2] - speed
+            near_goal = p2["y"] < 0.1 * CANVAS_H or p2["y"] > 0.9 * CANVAS_H
+            if near_goal and decel > max_decel:
+                max_decel    = decel
+                best_defense = p2
+
+    return {
+        "avg_speed":    sum(speeds) / len(speeds),
+        "max_speed":    max_speed,
+        "best_shot":    best_shot,
+        "best_defense": best_defense,
+        "heatmap":      heatmap.tolist(),
+    }
+
+async def inference_worker():
+    global match_over
+
+    while True:
+        frame, ts = await frame_queue.get()
+
+        if match_over:
+            frame_queue.task_done()
+            continue
+
+        loop = asyncio.get_event_loop()
+        cx, cy, conf = await loop.run_in_executor(None, detect_ball, frame)
+
+        if cx is not None:
+            # Map from camera frame to canvas via homography
+            kx_raw, ky_raw = apply_homography(cx, cy)
+            if kx_raw is None:
+                frame_queue.task_done()
+                continue
+
+            kx, ky = kalman_update(kx_raw, ky_raw)
+            ball_history.append({"x": kx, "y": ky, "t": ts})
+
+            scorer = check_goal(kx, ky)
+
+            if scorer:
+                game.score[scorer] += 1
+
+                await broadcast(spectators, {
+                    "type":  "goal",
+                    "team":  scorer,
+                    "score": dict(game.score),
+                })
+                await broadcast(controllers, {
+                    "type":  "goal",
+                    "team":  scorer,
+                    "score": dict(game.score),
+                })
+
+                await broadcast(cameras, {"type": "send_replay"})
+
+                if game.score[scorer] >= GOALS_TO_WIN:
+                    match_over = True
+                    stats = compute_stats()
+                    await broadcast(spectators, {
+                        "type":  "match_end",
+                        "score": dict(game.score),
+                        "stats": stats,
+                    })
+
+            await broadcast(spectators, {
+                "type":  "position",
+                "x":     kx / CANVAS_W,
+                "y":     ky / CANVAS_H,
+                "conf":  conf,
+                "ts":    ts,
+                "score": dict(game.score),
+            })
+
+        frame_queue.task_done()
+
+async def process_camera_message(ws, msg):
+    data = json.loads(msg)
+    msg_type = data.get("type")
+
+    if msg_type == "frame":
+        loop = asyncio.get_event_loop()
+        frame = await loop.run_in_executor(None, decode_base64_to_cv2, data["image"])
+        if frame is not None and not frame_queue.full():
+            await frame_queue.put((frame, data.get("ts")))
+
+    elif msg_type == "calibration_frame":
+        loop = asyncio.get_event_loop()
+        frame = await loop.run_in_executor(None, decode_base64_to_cv2, data["image"])
+        if frame is None:
+            await broadcast(cameras,     {"type": "calibration_failed"})
+            await broadcast(controllers, {"type": "calibration_failed"})
+            await broadcast(spectators,  {"type": "calibration_failed"})
             return
-        store_pending_calibration(
-            corners,
-            data.get("frame_width"),
-            data.get("frame_height"),
-        )
+
+        corners = await loop.run_in_executor(None, detect_field_corners, frame)
+        if corners is None:
+            await broadcast(cameras,     {"type": "calibration_failed"})
+            await broadcast(controllers, {"type": "calibration_failed"})
+            await broadcast(spectators,  {"type": "calibration_failed"})
+            return
+
+        fw = data.get("frame_width",  frame.shape[1])
+        fh = data.get("frame_height", frame.shape[0])
+        store_pending_calibration(corners, fw, fh)
+
         await broadcast(cameras, {
             "type":    "calibration_preview",
             "corners": corners,
         })
 
-    # "Calibrer" btn (camera) -> preview to spectator screen
-    elif data.get("type") == "calibration_preview":
-        await broadcast(controller, {
-            "type":         "calibration_preview",
-            "image":        data.get("image"),
-            "corners":      data.get("corners"),
-            "frame_width":  data.get("frame_width"),
-            "frame_height": data.get("frame_height"),
+    elif msg_type == "calibration_preview":
+        fw = data.get("frame_width",  0)
+        fh = data.get("frame_height", 0)
+        store_pending_calibration(data["corners"], fw, fh)
+
+        await broadcast(controllers, {
+            "type":    "calibration_preview",
+            "image":   data["image"],
+            "corners": data["corners"],
         })
 
-    elif data.get("type") == "calibration_failed":
-        await broadcast(controller, {"type": "calibration_failed"})
+    elif msg_type == "calibration_failed":
+        await broadcast(controllers, {"type": "calibration_failed"})
+        await broadcast(spectators,  {"type": "calibration_failed"})
 
-    elif data.get("type") == "replay":
-        frames = data.get("frames", [])
-        print(f"replay reçu: {len(frames)} frames")
+    elif msg_type == "replay":
         await broadcast(spectators, {
             "type":   "replay",
-            "frames": data.get("frames"),
-        })
-
-    elif data.get("type") == "position":
-        # camera coordinates -> canvas coordinates
-        cx, cy = apply_homography(data["x"], data["y"])
-        if cx is None or not (0 <= cx <= CANVAS_W and 0 <= cy <= CANVAS_H):
-            return
-        kx, ky = kalman_update(cx, cy)
-        # normalize to [0, 1] for the spectator canvas
-        nx = kx / CANVAS_W
-        ny = ky / CANVAS_H
-        scorer = check_goal(kx, ky)
-        if scorer:
-            game.score[scorer] += 1
-            await broadcast(spectators, {"type": "goal", "team": scorer, "score": dict(game.score)})
-            await broadcast(cameras, {"type": "send_replay"})
-        await broadcast(spectators, {
-            "type":  "position",
-            "x":     nx,
-            "y":     ny,
-            "conf":  data.get("conf"),
-            "ts":    data.get("ts"),
-            "score": dict(game.score),
+            "frames": data["frames"],
         })
 
 async def handle_camera(ws):
-    ip = ws.remote_address[0]
-    cameras.add(ws) # camera opened a new websocket connection
-    print(f"Camera connected ({ip})")
-    await broadcast(controller, {"type": "camera_ready"})
-    limiter = RateLimiter(MAX_MESSAGES_PER_SEC_CAM)
+    cameras.add(ws)
+    await broadcast(controllers, {"type": "camera_ready"})
+    await broadcast(spectators,  {"type": "camera_ready"})
     try:
         async for msg in ws:
-            if limiter.allow():
-                await process_camera_message(msg)
+            await process_camera_message(ws, msg)
     finally:
         cameras.discard(ws)
-        print(f"Camera disconnected ({ip})")
 
-
-# Handler pour le controller (une seule connexion)
 async def handle_controller(ws):
-    ip = ws.remote_address[0]
-    if len(controller) >= 1:
-        print(f"Controller déjà connecté : {ip}")
-        await ws.close()
-        return
-    controller.add(ws)
-    print(f"Controller connecté ({ip})")
+    controllers.add(ws)
     if cameras:
         await ws.send(json.dumps({"type": "camera_ready"}))
-    limiter = RateLimiter(MAX_MESSAGES_PER_SEC_SPECT)
     try:
         async for msg in ws:
-            if not limiter.allow():
-                continue
-            try:
-                data = json.loads(msg)
-            except json.JSONDecodeError:
-                continue
-            if data.get("type") == "trigger_calibration":
+            data = json.loads(msg)
+            msg_type = data.get("type")
+
+            if msg_type == "trigger_calibration":
                 await broadcast(cameras, {"type": "start_calibration"})
-            elif data.get("type") == "confirm_calibration":
-                confirm_calibration()
-                await broadcast(cameras,    {"type": "calibration_ok"})
-                await broadcast(spectators, {"type": "calibration_ok"})
+
+            elif msg_type == "confirm_calibration":
+                ok = confirm_calibration()
+                if ok:
+                    await broadcast(cameras,     {"type": "calibration_ok"})
+                    await broadcast(controllers, {"type": "calibration_ok"})
+                    await broadcast(spectators,  {"type": "calibration_ok"})
+                else:
+                    await broadcast(controllers, {"type": "calibration_failed"})
+
     finally:
-        controller.discard(ws)
-        print(f"Controller déconnecté ({ip})")
+        controllers.discard(ws)
 
 async def handle_spectator(ws):
-    ip = ws.remote_address[0]
-    if len(spectators) >= MAX_SPECTATORS:
-        print(f"Too many spectators: {ip}")
-        await ws.close()
-        return
     spectators.add(ws)
-    print(f"Spectator connected ({ip}) — total: {len(spectators)}")
-    await sync_client_state(ws)
     try:
-        async for msg in ws: # stops when StopAsyncIteration is raised by await self.recv() in __anext__(self) in ws when the connection is closed
+        async for msg in ws:
             pass
     finally:
-        spectators.discard(ws) # websocket closed or error, remove from spectators set
-        print(f"Spectator disconnected ({ip})")
+        spectators.discard(ws)
 
-# json.dumps(obj) : Python -> JSON string
-# json.loads(str) : JSON string-> Python
-async def sync_client_state(ws):
-    if cameras:
-        await ws.send(json.dumps({"type": "camera_ready"}))
-    await ws.send(json.dumps({"type": "score", "score": dict(game.score)}))
-
-# normal def -> regular function.
-# async def -> coroutine function (it returns a coroutine object when called).
-# To run it, we need await (inside another coroutine) or asyncio.run(...) at the top level.
-# Optionally, we can run it as a parallel task with asyncio.create_task(...)
-
-# receives all websocket connections and dispatches them to the appropriate handler based on the URL path
 async def ws_handler(ws):
-    print(f"New WS connection: path={ws.path} ip={ws.remote_address[0]}")
-    if not connection_allowed(ws):
-        await ws.close()
-        return
-    ip = ws.remote_address[0]
-    ip_connections[ip] += 1
-    try:
-        if "/camera" in ws.path:
-            await handle_camera(ws)
-        elif "/controller" in ws.path:
-            await handle_controller(ws)
-        else:
-            await handle_spectator(ws)
-    finally:
-        ip_connections[ip] = max(0, ip_connections[ip] - 1) # nb of connections never negative
+    path = ws.path
+    if path.startswith("/camera"):
+        await handle_camera(ws)
+    elif path.startswith("/controller"):
+        await handle_controller(ws)
+    else:
+        await handle_spectator(ws)
 
-STATIC_FILES = {
-    "/" : "index.html",
-    "/index.html" : "index.html",
-    "/camera.html" : "camera.html",
-    "/controller.html" : "controller.html",
-    "/model.onnx": "model.onnx",
-    "/test.mp4" : "test.mp4",
-}
+STATIC_ROOT = Path(__file__).parent
+HTTP_PORT   = PORT
 
-async def http_handler(path, headers):
-    path = path.split("?")[0] # /camera.html?foo=1 -> /camera.html
-    upgrade_hdr    = headers.get("Upgrade", "")
-    connection_hdr = headers.get("Connection", "")
+async def http_file_handler(request):
+    path = request.path
+    if path == "/":
+        path = "/index.html"
+    file_path = STATIC_ROOT / path.lstrip("/")
+    if not file_path.exists() or not file_path.is_file():
+        return web.Response(status=404, text="Not Found")
+    mime, _ = mimetypes.guess_type(str(file_path))
+    loop = asyncio.get_event_loop()
+    data = await loop.run_in_executor(None, file_path.read_bytes)
+    return web.Response(body=data, content_type=mime or "application/octet-stream")
 
-    is_ws_upgrade = (
-        upgrade_hdr.lower() == "websocket"
-        and "upgrade" in connection_hdr.lower()
-    )
-    if is_ws_upgrade:
-        return None # it's a websocket upgrade request, lets ws_handler take care of it
-
-    filename = STATIC_FILES.get(path)
-    # The response sent to the client must be a tuple of 3 elements: (status, headers, body)
-    if not filename:
-        return http.HTTPStatus.NOT_FOUND, [], b"Not Found\n" # b : string -> bytes
-    filepath = Path(__file__).parent / filename # absolute path to the static file
-    if not filepath.exists():
-        return http.HTTPStatus.NOT_FOUND, [], b"Not Found\n"
-    content = filepath.read_bytes()
-    content_type = "application/octet-stream" if path.endswith(".onnx") else "text/html; charset=utf-8"
-    return http.HTTPStatus.OK, [("Content-Type", content_type)], content
-
-# With websockets.serve(...), the library creates an underlying TCP listening socket (bind/listen/accept).
-# For each accepted client, it creates a connection and gives you the ws object (a WebSocket wrapper) in the handler.
 async def main():
-    print(f"Server running on port {PORT}")
-    async with websockets.serve(
-        ws_handler,
-        "0.0.0.0", # listen on all interfaces, not just localhost
-        PORT,
-        process_request=http_handler,
-        max_size=5 * 1024 * 1024,
-    ):
-        await asyncio.Future()
+    global frame_queue
+    frame_queue = asyncio.Queue(maxsize=5)
+    asyncio.create_task(inference_worker())
+
+    ws_server = await websockets.serve(ws_handler, "0.0.0.0", WS_PORT)
+
+    app = web.Application()
+    app.router.add_route("GET", "/config.json", lambda r: web.Response(
+        text=__import__('json').dumps({"ws_port": WS_PORT}),
+        content_type="application/json"
+    ))
+    app.router.add_route("GET", "/{path_info:.*}", http_file_handler)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", HTTP_PORT)
+    await site.start()
+
+    print(f"HTTP  on http://0.0.0.0:{HTTP_PORT}")
+    print(f"WS    on ws://0.0.0.0:{WS_PORT}")
+    await asyncio.Future()
 
 asyncio.run(main())
-
-# In this project, all `ws.` methods we use for network communication
-# (send, recv, close) are coroutines (`async def`) and must be called with `await`.
-# Attributes like ws.remote_address or ws.state are regular values and do not require await.
