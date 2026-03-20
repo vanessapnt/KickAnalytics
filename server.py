@@ -167,7 +167,7 @@ async def inference_worker():
 
             scorer = check_goal(kx, ky)
 
-            if scorer:
+            if scorer and not replay_in_progress :
                 game.score[scorer] += 1
 
                 # Snapshot du buffer au moment du but + 10 frames after
@@ -207,17 +207,23 @@ async def inference_worker():
 
         frame_queue.task_done()
 
+replay_in_progress = False
+
+
 async def send_replay_after(before_frames, n_after):
-    """Attend que n_after nouvelles frames arrivent dans le buffer puis envoie le replay."""
+    global replay_in_progress
     target = len(frame_replay_buffer) + n_after
     while len(frame_replay_buffer) < min(target, REPLAY_BUFFER_SIZE):
         await asyncio.sleep(0.05)
 
     after_frames = frame_replay_buffer[-n_after:] if len(frame_replay_buffer) >= n_after else list(frame_replay_buffer)
+    total_frames = len(before_frames) + len(after_frames)
     await broadcast(spectators, {
         "type":   "replay",
         "frames": before_frames + after_frames,
     })
+    await asyncio.sleep(total_frames * 0.08 + 0.5)
+    replay_in_progress = False
 
 async def process_camera_message(ws, msg):
     data = json.loads(msg)

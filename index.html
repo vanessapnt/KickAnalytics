@@ -133,13 +133,18 @@ async function connect()
     if (d.type === 'replay') {
       replayImg.style.display = 'block';
       let i = 0;
+      const offscreen = new Image();
+
       function showNext() {
         if (i >= d.frames.length) {
           replayImg.style.display = 'none';
           return;
         }
-        replayImg.src = d.frames[i++];
-        setTimeout(showNext, 100);
+        offscreen.onload = () => {
+          replayImg.src = offscreen.src;
+          setTimeout(showNext, 80);
+        };
+        offscreen.src = d.frames[i++];
       }
       showNext();
     }
