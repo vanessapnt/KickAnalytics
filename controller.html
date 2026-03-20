@@ -79,17 +79,12 @@ async function connect()
       document.getElementById('status').textContent = '❌ Échec détection — réessaie';
     }
     if (d.type === 'goal') {
-      alert(d.team === 'red' ? '🔴 BUT Rouge !' : '🔵 BUT Bleu !');
       if (d.score) {
         document.getElementById('scoreRed').textContent  = d.score.red;
         document.getElementById('scoreBlue').textContent = d.score.blue;
       }
     }
     if (d.type === 'match_end') {
-      alert(
-        '🏁 Match terminé !\n' +
-        'Score final : Rouge ' + d.score.red + ' – Bleu ' + d.score.blue
-      );
       document.getElementById('scoreRed').textContent  = d.score.red;
       document.getElementById('scoreBlue').textContent = d.score.blue;
       document.getElementById('status').textContent    = '🏁 Match terminé';

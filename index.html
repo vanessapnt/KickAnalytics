@@ -24,9 +24,11 @@ function getWsBase() {
   <p id="status">Déconnecté</p>
   <p>Rouge : <span id="scoreRed">0</span> — Bleu : <span id="scoreBlue">0</span></p>
   <p>x=<span id="sX">—</span> y=<span id="sY">—</span> conf=<span id="sConf">—</span> latence=<span id="sLat">—</span></p>
-  <canvas id="terrain" width="450" height="800" style="border:1px solid #000; max-width:100%"></canvas>
-  <br><br>
-  <img id="replayImg" style="max-width:100%; width:100%; border:3px solid red" />
+  
+  <div style="display:flex; gap:16px; align-items:flex-start">
+    <canvas id="terrain" width="450" height="800" style="border:1px solid #000; max-width:50%"></canvas>
+    <img id="replayImg" style="display:none; max-width:50%; border:3px solid red" />
+  </div>
 </div>
 
 <div id="section-jouer" style="display:none">
@@ -126,12 +128,6 @@ async function connect()
       }
     }
     if (d.type === 'match_end') {
-      alert(
-        "🏁 Match terminé !\n" +
-        "Score: Rouge " + d.score.red + " - Bleu " + d.score.blue + "\n\n" +
-        "⚡ Vitesse max: " + d.stats.max_speed.toFixed(1)
-      );
-
       drawHeatmap(d.stats.heatmap);
     }
     if (d.type === 'replay') {
@@ -142,13 +138,13 @@ async function connect()
           replayImg.style.display = 'none';
           return;
         }
-        replayImg.onload = showNext;
         replayImg.src = d.frames[i++];
+        setTimeout(showNext, 100);
       }
       showNext();
     }
-  };
-}
+  }
+};
 
 function disconnect()
 {

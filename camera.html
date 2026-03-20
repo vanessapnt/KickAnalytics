@@ -34,10 +34,6 @@ const video   = document.getElementById('video');
 const preview = document.getElementById('preview');
 const pCtx    = preview.getContext('2d');
 
-const REPLAY_BEFORE = 10;
-const REPLAY_AFTER  = 10;
-const frameBuffer   = [];
-
 window.addEventListener('beforeunload', stop);
 
 function showPreview(corners)
@@ -116,13 +112,9 @@ function startTracking()
       return;
     }
 
-    const frame = captureFrameSmall();
-    frameBuffer.push(frame);
-    if (frameBuffer.length > REPLAY_BEFORE) frameBuffer.shift();
-
     ws?.send(JSON.stringify({
       type:  'frame',
-      image: frame,
+      image: captureFrameSmall(),
       ts:    Date.now(),
     }));
 
@@ -194,23 +186,6 @@ async function start()
           document.getElementById('terrainStatus').textContent = 'Terrain calibré ✓';
           startTracking();
         }
-
-        else if (d.type === 'send_replay') {
-          const beforeFrames = [...frameBuffer];
-          let remaining      = REPLAY_AFTER;
-          const afterFrames  = [];
-
-          const interval = setInterval(() => {
-            afterFrames.push(captureFrameSmall());
-            if (--remaining === 0) {
-              clearInterval(interval);
-              ws?.send(JSON.stringify({
-                type:   'replay',
-                frames: [...beforeFrames, ...afterFrames],
-              }));
-            }
-          }, 100);
-        }
       };
     }
 
@@ -232,7 +207,6 @@ function stop()
   running    = false;
   calibrated = false;
   if (trackingLoop !== null) { clearTimeout(trackingLoop); trackingLoop = null; }
-  frameBuffer.length = 0;
   showPreview(null);
   stream?.getTracks().forEach(t => t.stop());
   stream = null;

@@ -20,8 +20,11 @@ from game import (
 )
 
 GOALS_TO_WIN = 5
+REPLAY_BUFFER_SIZE = 30  # frames gardées en mémoire côté serveur
+
 match_over = False
 ball_history = []
+frame_replay_buffer = []  # buffer base64 glissant côté serveur
 
 print("Loading ONNX model...")
 sess = ort.InferenceSession("model.onnx")
@@ -136,17 +139,24 @@ async def inference_worker():
     global match_over
 
     while True:
-        frame, ts = await frame_queue.get()
+        frame, ts, image_b64 = await frame_queue.get()
 
         if match_over:
             frame_queue.task_done()
             continue
 
+        # Mise à jour du buffer replay glissant
+        frame_replay_buffer.append(image_b64)
+        if len(frame_replay_buffer) > REPLAY_BUFFER_SIZE:
+            frame_replay_buffer.pop(0)
+
         loop = asyncio.get_event_loop()
         cx, cy, conf = await loop.run_in_executor(None, detect_ball, frame)
 
         if cx is not None:
-            # Map from camera frame to canvas via homography
+            orig_h, orig_w = frame.shape[:2]
+            cx = cx / 640 * orig_w * 2
+            cy = cy / 640 * orig_h * 2
             kx_raw, ky_raw = apply_homography(cx, cy)
             if kx_raw is None:
                 frame_queue.task_done()
@@ -160,6 +170,9 @@ async def inference_worker():
             if scorer:
                 game.score[scorer] += 1
 
+                # Snapshot du buffer au moment du but + 10 frames after
+                replay_before = list(frame_replay_buffer)
+
                 await broadcast(spectators, {
                     "type":  "goal",
                     "team":  scorer,
@@ -171,7 +184,8 @@ async def inference_worker():
                     "score": dict(game.score),
                 })
 
-                await broadcast(cameras, {"type": "send_replay"})
+                # Capture 10 frames after en attendant les prochaines du worker
+                asyncio.create_task(send_replay_after(replay_before, 10))
 
                 if game.score[scorer] >= GOALS_TO_WIN:
                     match_over = True
@@ -193,15 +207,28 @@ async def inference_worker():
 
         frame_queue.task_done()
 
+async def send_replay_after(before_frames, n_after):
+    """Attend que n_after nouvelles frames arrivent dans le buffer puis envoie le replay."""
+    target = len(frame_replay_buffer) + n_after
+    while len(frame_replay_buffer) < min(target, REPLAY_BUFFER_SIZE):
+        await asyncio.sleep(0.05)
+
+    after_frames = frame_replay_buffer[-n_after:] if len(frame_replay_buffer) >= n_after else list(frame_replay_buffer)
+    await broadcast(spectators, {
+        "type":   "replay",
+        "frames": before_frames + after_frames,
+    })
+
 async def process_camera_message(ws, msg):
     data = json.loads(msg)
     msg_type = data.get("type")
 
     if msg_type == "frame":
         loop = asyncio.get_event_loop()
-        frame = await loop.run_in_executor(None, decode_base64_to_cv2, data["image"])
+        image_b64 = data["image"]
+        frame = await loop.run_in_executor(None, decode_base64_to_cv2, image_b64)
         if frame is not None and not frame_queue.full():
-            await frame_queue.put((frame, data.get("ts")))
+            await frame_queue.put((frame, data.get("ts"), image_b64))
 
     elif msg_type == "calibration_frame":
         loop = asyncio.get_event_loop()
@@ -242,12 +269,6 @@ async def process_camera_message(ws, msg):
     elif msg_type == "calibration_failed":
         await broadcast(controllers, {"type": "calibration_failed"})
         await broadcast(spectators,  {"type": "calibration_failed"})
-
-    elif msg_type == "replay":
-        await broadcast(spectators, {
-            "type":   "replay",
-            "frames": data["frames"],
-        })
 
 async def handle_camera(ws):
     cameras.add(ws)
