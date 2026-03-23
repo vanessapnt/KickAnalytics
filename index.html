@@ -4,158 +4,512 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KickAnalytics</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --red: #e50914;
+  --red-dark: #c0060f;
+  --red-light: #fff0f0;
+  --bg: #f5f5f5;
+  --card: #ffffff;
+  --card-dark: #1b1b2f;
+  --text: #1a1a1a;
+  --muted: #888;
+  --border: #e8e8e8;
+  --radius: 12px;
+}
+
+body {
+  font-family:sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+header {
+  background: var(--red);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(229,9,20,0.4);
+}
+.logo { font-size: 22px; font-weight: 900; color: white; letter-spacing: -0.5px; }
+.live-badge {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 20px; padding: 5px 14px;
+  font-size: 11px; font-weight: 800; color: white; letter-spacing: 0.5px;
+}
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: white; animation: pulse 1.4s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+nav {
+  display: flex; gap: 6px;
+  background: var(--card);
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 52px; z-index: 90;
+  overflow-x: auto; scrollbar-width: none;
+}
+nav::-webkit-scrollbar { display: none; }
+nav button {
+  background: var(--bg); border: none;
+  padding: 7px 18px; font-size: 13px; border-radius: 20px;
+  cursor: pointer; font-weight: 700; color: var(--muted);
+  white-space: nowrap; font-family:sans-serif;
+  transition: all 0.15s; flex-shrink: 0;
+}
+nav button.active { background: var(--red); color: white; }
+
+.section { display: none; }
+.section.active { display: block; }
+
+.page-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+@media (min-width: 768px) {
+  .live-layout {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 20px;
+    align-items: start;
+  }
+  .live-left { display: flex; flex-direction: column; gap: 14px; }
+  .live-right { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 110px; }
+
+  .jouer-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  footer { display: none; }
+  body { padding-bottom: 0; }
+
+  .desktop-sidebar {
+    display: block;
+    position: sticky;
+    top: 110px;
+  }
+}
+
+@media (max-width: 767px) {
+  body { padding-bottom: 70px; }
+  .page-content { padding: 0 0 12px; }
+  .live-layout { display: flex; flex-direction: column; gap: 0; }
+  .live-left { display: flex; flex-direction: column; }
+  .live-right { display: flex; flex-direction: column; }
+  .jouer-layout { display: flex; flex-direction: column; }
+  .desktop-sidebar { display: none; }
+}
+
+.match-card {
+  background: var(--card-dark);
+  color: white;
+  padding: 18px;
+  border-radius: var(--radius);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+}
+@media (max-width: 767px) {
+  .match-card { border-radius: 0; margin: 0; box-shadow: none; }
+}
+
+.match-meta {
+  display: flex; justify-content: space-between;
+  font-size: 11px; opacity: 0.45; margin-bottom: 14px;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.match-score {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.team { display: flex; flex-direction: column; align-items: center; gap: 7px; flex: 1; }
+.team-badge {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; border: 2px solid rgba(255,255,255,0.1);
+}
+.team-badge.red  { background: rgba(229,9,20,0.3); }
+.team-badge.blue { background: rgba(21,101,192,0.25); }
+.team-name { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.85); }
+.score-center { display: flex; align-items: center; gap: 10px; flex-shrink: 0; padding: 0 16px; }
+.score-num { font-size: 52px; font-weight: 900; color: white; line-height: 1; min-width: 32px; text-align: center; }
+.score-sep { font-size: 26px; color: rgba(255,255,255,0.2); }
+
+.dom-bar { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; margin-bottom: 4px; }
+.dom-fill { height: 100%; background: var(--red); border-radius: 2px; transition: width 0.5s; }
+.dom-labels { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; opacity: 0.5; }
+
+.status-tag {
+  display: inline-block; background: rgba(255,255,255,0.1);
+  border-radius: 6px; padding: 5px 10px;
+  font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.5);
+  margin-top: 12px;
+}
+.status-tag.ok  { background: rgba(76,175,80,0.3); color: #a5d6a7; }
+.status-tag.err { background: rgba(229,9,20,0.35); color: #ffcdd2; }
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+@media (max-width: 767px) {
+  .stats-grid { margin: 10px 12px 0; }
+}
+
+.stat-card {
+  background: var(--card); border-radius: 10px;
+  padding: 14px 6px; text-align: center;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.stat-val { font-size: 18px; font-weight: 800; color: var(--text); }
+.stat-val.red { color: var(--red); }
+.stat-lbl { font-size: 9px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
+
+.latency-card {
+  background: var(--card); border-radius: 10px; padding: 12px 16px;
+  border: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+@media (max-width: 767px) { .latency-card { margin: 8px 12px 0; } }
+.latency-card .lbl { font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+.latency-card .val { font-size: 14px; font-weight: 800; color: var(--red); }
+
+.field-card {
+  background: var(--card); border-radius: var(--radius);
+  overflow: hidden; border: 1px solid var(--border);
+  position: relative;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+@media (max-width: 767px) {
+  .field-card { border-radius: 0; border-left: none; border-right: none; }
+}
+
+canvas#terrain { display: block; width: 100%; height: auto; }
+
+.replay-overlay {
+  position: absolute; inset: 0; background: #000; display: none;
+}
+.replay-overlay .replay-label {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  background: var(--red); color: white; font-size: 13px; font-weight: 900;
+  padding: 4px 16px; border-radius: 6px; letter-spacing: 1px;
+}
+.replay-overlay img { width: 100%; height: 100%; object-fit: contain; }
+
+.nav-card {
+  background: var(--card); border-radius: var(--radius);
+  padding: 18px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; text-decoration: none;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+.nav-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-1px); }
+.nav-card:active { transform: translateY(0); }
+@media (max-width: 767px) {
+  .nav-card { border-radius: 0; border-left: none; border-right: none; box-shadow: none; }
+  .nav-card:hover { transform: none; box-shadow: none; }
+}
+.nav-card-left { display: flex; align-items: center; gap: 16px; }
+.nav-card-icon { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+.nav-card-icon.red-bg  { background: var(--red-light); }
+.nav-card-icon.blue-bg { background: #e8f0fb; }
+.nav-card-title { font-size: 15px; font-weight: 800; color: var(--text); }
+.nav-card-sub   { font-size: 12px; color: var(--muted); margin-top: 2px; font-weight: 600; }
+.nav-card-arrow { font-size: 22px; color: #ccc; }
+
+.stats-empty {
+  background: var(--card); border-radius: var(--radius);
+  padding: 48px 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  border: 1px solid var(--border);
+}
+@media (max-width: 767px) { .stats-empty { border-radius: 0; border-left: none; border-right: none; } }
+.stats-empty .icon { font-size: 38px; opacity: 0.25; }
+.stats-empty .hint { font-size: 13px; color: var(--muted); font-weight: 600; text-align: center; }
+
+#heatmapCard {
+  display: none; background: var(--card);
+  border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border);
+}
+#heatmapCanvas { display: block; width: 100%; }
+
+.section-header {
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 1.5px;
+  margin-bottom: 10px;
+}
+@media (max-width: 767px) { .section-header { padding: 14px 12px 4px; margin: 0; } }
+
+footer {
+  display: flex; justify-content: space-around;
+  padding: 8px 0 12px;
+  background: var(--card); border-top: 1px solid var(--border);
+  position: fixed; bottom: 0; width: 100%; z-index: 100;
+}
+footer button {
+  background: none; border: none; font-size: 11px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 4px 16px; color: var(--muted);
+  font-family:sans-serif; font-weight: 700; position: relative;
+}
+footer button.active { color: var(--red); }
+footer button.active::before {
+  content: ''; position: absolute; top: -8px; left: 50%;
+  transform: translateX(-50%);
+  width: 28px; height: 3px; background: var(--red); border-radius: 0 0 3px 3px;
+}
+footer button .icon { font-size: 20px; }
+</style>
 <script>
 function getWsBase() {
-  const proto    = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws_port  = parseInt(window.location.port || (proto === 'wss' ? 443 : 80)) + 1;
+  const proto   = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws_port = parseInt(window.location.port || (proto === 'wss' ? 443 : 80)) + 1;
   return `${proto}://${window.location.hostname}:${ws_port}`;
 }
 </script>
 </head>
 <body>
 
-<h1>KickAnalytics</h1>
+<header>
+  <div class="logo">KickAnalytics</div>
+  <div class="live-badge"><span class="live-dot"></span>EN DIRECT</div>
+</header>
 
-<button onclick="show('regarder')">👁 Regarder</button>
-<button onclick="show('jouer')">🎮 Jouer</button>
+<nav>
+  <button class="active" onclick="switchNav(this,'live')">Live</button>
+  <button onclick="switchNav(this,'jouer')">Jouer</button>
+  <button onclick="switchNav(this,'stats')">Stats</button>
+</nav>
 
-<div id="section-regarder" style="display:none">
-  <h2>Regarder</h2>
-  <p id="status">Déconnecté</p>
-  <p>Rouge : <span id="scoreRed">0</span> — Bleu : <span id="scoreBlue">0</span></p>
-  <p>x=<span id="sX">—</span> y=<span id="sY">—</span> conf=<span id="sConf">—</span> latence=<span id="sLat">—</span></p>
-  
-  <div style="display:flex; gap:16px; align-items:flex-start">
-    <canvas id="terrain" width="450" height="800" style="border:1px solid #000; max-width:50%"></canvas>
-    <img id="replayImg" style="display:none; max-width:50%; border:3px solid red" />
+<div id="sec-live" class="section active">
+  <div class="page-content">
+    <div class="live-layout">
+
+      <div class="live-left">
+        <div class="section-header" style="display:none" id="sh-terrain">Terrain en direct</div>
+        <div class="field-card">
+          <canvas id="terrain" width="400" height="700"></canvas>
+          <div class="replay-overlay" id="replayOverlay">
+            <div class="replay-label">REPLAY</div>
+            <img id="replayImg"/>
+          </div>
+        </div>
+
+        <div class="stats-grid" id="statsRow">
+          <div class="stat-card"><div class="stat-val" id="sX">—</div><div class="stat-lbl">X</div></div>
+          <div class="stat-card"><div class="stat-val" id="sY">—</div><div class="stat-lbl">Y</div></div>
+          <div class="stat-card"><div class="stat-val red" id="sConf">—</div><div class="stat-lbl">Conf</div></div>
+        </div>
+        <div class="latency-card">
+          <span class="lbl">Latence</span>
+          <span class="val" id="sLat">—</span>
+        </div>
+      </div>
+
+      <div class="live-right">
+        <div class="match-card">
+          <div class="match-meta">
+            <span>Baby-foot — Match officiel</span>
+            <span>En cours</span>
+          </div>
+          <div class="match-score">
+            <div class="team">
+              <div class="team-badge red">🔴</div>
+              <span class="team-name">Rouge</span>
+            </div>
+            <div class="score-center">
+              <span class="score-num" id="scoreRed">0</span>
+              <span class="score-sep">–</span>
+              <span class="score-num" id="scoreBlue">0</span>
+            </div>
+            <div class="team">
+              <div class="team-badge blue">🔵</div>
+              <span class="team-name">Bleu</span>
+            </div>
+          </div>
+          <div class="dom-bar"><div class="dom-fill" id="domFill" style="width:50%"></div></div>
+          <div class="dom-labels"><span id="domRed">50%</span><span id="domBlue">50%</span></div>
+          <div><span class="status-tag" id="statusTag">Déconnecté</span></div>
+        </div>
+      </div>
+
+    </div>
   </div>
 </div>
 
-<div id="section-jouer" style="display:none">
-  <h2>Jouer</h2>
-  <a href="/camera.html"><button>📷 Caméra</button></a>
-  <a href="/controller.html"><button>🎛 Contrôleur</button></a>
+<div id="sec-jouer" class="section">
+  <div class="page-content">
+    <div class="jouer-layout">
+      <a href="/camera.html" class="nav-card">
+        <div class="nav-card-left">
+          <div class="nav-card-icon red-bg">📷</div>
+          <div>
+            <div class="nav-card-title">Caméra</div>
+            <div class="nav-card-sub">Filmer le terrain</div>
+          </div>
+        </div>
+        <span class="nav-card-arrow">›</span>
+      </a>
+      <a href="/controller.html" class="nav-card">
+        <div class="nav-card-left">
+          <div class="nav-card-icon blue-bg">🎛</div>
+          <div>
+            <div class="nav-card-title">Contrôleur</div>
+            <div class="nav-card-sub">Gérer le match</div>
+          </div>
+        </div>
+        <span class="nav-card-arrow">›</span>
+      </a>
+    </div>
+  </div>
 </div>
 
+<div id="sec-stats" class="section">
+  <div class="page-content">
+    <div class="stats-empty" id="statsEmpty">
+      <span class="icon">📊</span>
+      <span class="hint">Les stats apparaîtront ici en fin de match</span>
+    </div>
+    <div id="heatmapCard">
+      <canvas id="heatmapCanvas" width="400" height="200"></canvas>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <button class="active" id="fb-live"  onclick="footerNav('live',this)"><span class="icon">⚽</span>Live</button>
+  <button id="fb-jouer" onclick="footerNav('jouer',this)"><span class="icon">🎮</span>Jouer</button>
+  <button id="fb-stats" onclick="footerNav('stats',this)"><span class="icon">📊</span>Stats</button>
+</footer>
+
 <script>
-let ws = null;
+let ws = null, scoreR = 0, scoreB = 0;
+const canvas = document.getElementById('terrain');
+const ctx    = canvas.getContext('2d');
 
-function show(section)
-{
-  document.getElementById('section-regarder').style.display = 'none';
-  document.getElementById('section-jouer').style.display    = 'none';
-  document.getElementById(`section-${section}`).style.display = 'block';
-	if (section === 'regarder') connect();
-  if (section === 'jouer') disconnect();
+function checkDesktop() {
+  const dn = document.getElementById('desktopNav');
+  if (dn) dn.style.display = window.innerWidth >= 768 ? 'block' : 'none';
+}
+checkDesktop();
+window.addEventListener('resize', checkDesktop);
+
+function switchNav(btn, evtOrSec, sec) {
+  if (typeof evtOrSec === 'string') sec = evtOrSec;
+  else if (evtOrSec && evtOrSec.preventDefault) evtOrSec.preventDefault();
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  showSection(sec);
 }
 
-const canvas    = document.getElementById('terrain');
-const ctx       = canvas.getContext('2d');
-const replayImg = document.getElementById('replayImg');
+function footerNav(sec, btn) {
+  document.querySelectorAll('footer button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('nav button').forEach((b,i) => {
+    b.classList.remove('active');
+    if (['live','jouer','stats'][i] === sec) b.classList.add('active');
+  });
+  showSection(sec);
+}
 
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('sec-' + id).classList.add('active');
+  if (id === 'live' && !ws) connect();
+  if (id !== 'live') disconnect();
+}
+
+function setStatus(text, type='') {
+  const el = document.getElementById('statusTag');
+  el.textContent = text; el.className = 'status-tag' + (type ? ' '+type : '');
+}
+function updateDom() {
+  const total = scoreR + scoreB;
+  const pct = total === 0 ? 50 : Math.round(scoreR/total*100);
+  document.getElementById('domFill').style.width = pct + '%';
+  document.getElementById('domRed').textContent  = pct + '%';
+  document.getElementById('domBlue').textContent = (100-pct) + '%';
+}
+
+function drawField() {
+  const W = canvas.width, H = canvas.height;
+  for (let i=0;i<8;i++) {
+    ctx.fillStyle = i%2===0 ? '#2d8a47' : '#298042';
+    ctx.fillRect(0, i*H/8, W, H/8);
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2;
+  ctx.strokeRect(14,14,W-28,H-28);
+  ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(W/2,H/2,44,0,Math.PI*2); ctx.stroke();
+  const gw=W*0.35, gx=(W-gw)/2;
+  ctx.strokeRect(gx,0,gw,28); ctx.strokeRect(gx,H-28,gw,28);
+}
 function drawBall(nx, ny) {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#4a7c4e';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const x = nx * canvas.width;
-  const y = ny * canvas.height;
-  ctx.beginPath();
-  ctx.arc(x, y, 10, 0, Math.PI * 2);
-  ctx.fillStyle = 'white';
-  ctx.fill();
+  drawField();
+  const x=nx*canvas.width, y=ny*canvas.height;
+  ctx.shadowColor='rgba(0,0,0,0.4)'; ctx.shadowBlur=12;
+  ctx.beginPath(); ctx.arc(x,y,11,0,Math.PI*2);
+  ctx.fillStyle='white'; ctx.fill();
+  ctx.strokeStyle='#222'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.shadowBlur=0;
 }
-
 function drawHeatmap(heatmap) {
-  const rows = heatmap.length;
-  const cols = heatmap[0].length;
-
-  const cellW = canvas.width / cols;
-  const cellH = canvas.height / rows;
-
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-      const val = heatmap[y][x];
-      if (val > 0) {
-        const intensity = Math.min(val / 10, 1);
-        ctx.fillStyle = `rgba(255,0,0,${intensity})`;
-        ctx.fillRect(x*cellW, y*cellH, cellW, cellH);
-      }
-    }
+  document.getElementById('statsEmpty').style.display='none';
+  document.getElementById('heatmapCard').style.display='block';
+  const hc=document.getElementById('heatmapCanvas'), hctx=hc.getContext('2d');
+  const rows=heatmap.length, cols=heatmap[0].length;
+  hctx.fillStyle='#2d8a47'; hctx.fillRect(0,0,hc.width,hc.height);
+  for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
+    const v=heatmap[y][x];
+    if(v>0){hctx.fillStyle=`rgba(229,9,20,${Math.min(v/10,1)*0.8})`;hctx.fillRect(x*hc.width/cols,y*hc.height/rows,hc.width/cols,hc.height/rows);}
   }
 }
+drawField();
 
-async function connect()
-{
+function connect() {
   if (ws) return;
-  const base = getWsBase();
-  ws = new WebSocket(`${base}/`);
-
-  ws.onopen = () => document.getElementById('status').textContent = 'Connecté ✓';
-
-  ws.onclose = () => {
-    ws = null;
-    document.getElementById('status').textContent = 'Déconnecté';
-  };
-
+  ws = new WebSocket(`${getWsBase()}/`);
+  ws.onopen  = () => setStatus('Connecté ✓','ok');
+  ws.onclose = () => { ws=null; setStatus('Déconnecté'); };
   ws.onmessage = (e) => {
     const d = JSON.parse(e.data);
-    if (d.type === 'camera_ready') {
-      document.getElementById('status').textContent = '📱 Caméra prête';
+    if(d.type==='camera_ready') setStatus('📱 Caméra prête');
+    if(d.type==='calibration_ok') { setStatus('🟢 Match en cours','ok'); scoreR=scoreB=0; document.getElementById('scoreRed').textContent=0; document.getElementById('scoreBlue').textContent=0; updateDom(); }
+    if(d.type==='calibration_failed') setStatus('❌ Calibration échouée','err');
+    if(d.type==='position') {
+      drawBall(d.x,d.y);
+      if(d.ts) document.getElementById('sLat').textContent=(Date.now()-d.ts)+'ms';
+      document.getElementById('sX').textContent=d.x?.toFixed(2)?? '—';
+      document.getElementById('sY').textContent=d.y?.toFixed(2)?? '—';
+      document.getElementById('sConf').textContent=d.conf!=null?Math.round(d.conf*100)+'%':'—';
+      if(d.score){scoreR=d.score.red;scoreB=d.score.blue;document.getElementById('scoreRed').textContent=scoreR;document.getElementById('scoreBlue').textContent=scoreB;updateDom();}
     }
-    if (d.type === 'calibration_ok') {
-      document.getElementById('status').textContent = '🟢 Match en cours';
-      document.getElementById('scoreRed').textContent  = 0;
-      document.getElementById('scoreBlue').textContent = 0;
+    if(d.type==='goal'&&d.score){scoreR=d.score.red;scoreB=d.score.blue;document.getElementById('scoreRed').textContent=scoreR;document.getElementById('scoreBlue').textContent=scoreB;updateDom();}
+    if(d.type==='match_end'){setStatus('🏁 Match terminé');drawHeatmap(d.stats.heatmap);}
+    if(d.type==='replay'){
+      const ov=document.getElementById('replayOverlay'),img=document.getElementById('replayImg');
+      ov.style.display='block'; let i=0; const off=new Image();
+      function next(){if(i>=d.frames.length){ov.style.display='none';return;}off.onload=()=>{img.src=off.src;setTimeout(next,80);};off.src=d.frames[i++];}
+      next();
     }
-    if (d.type === 'calibration_failed') {
-      document.getElementById('status').textContent = '❌ Calibration échouée';
-    }
-    if (d.type === 'position') {
-      drawBall(d.x, d.y);
-      if (d.ts) document.getElementById('sLat').textContent = (Date.now() - d.ts) + 'ms';
-      document.getElementById('sX').textContent    = d.x?.toFixed(3) ?? '—';
-      document.getElementById('sY').textContent    = d.y?.toFixed(3) ?? '—';
-      document.getElementById('sConf').textContent = d.conf != null ? Math.round(d.conf*100) + '%' : '—';
-      if (d.score) {
-        document.getElementById('scoreRed').textContent  = d.score.red;
-        document.getElementById('scoreBlue').textContent = d.score.blue;
-      }
-    }
-    if (d.type === 'goal') {
-      if (d.score) {
-        document.getElementById('scoreRed').textContent  = d.score.red;
-        document.getElementById('scoreBlue').textContent = d.score.blue;
-      }
-    }
-    if (d.type === 'match_end') {
-      drawHeatmap(d.stats.heatmap);
-    }
-    if (d.type === 'replay') {
-      replayImg.style.display = 'block';
-      let i = 0;
-      const offscreen = new Image();
-
-      function showNext() {
-        if (i >= d.frames.length) {
-          replayImg.style.display = 'none';
-          return;
-        }
-        offscreen.onload = () => {
-          replayImg.src = offscreen.src;
-          setTimeout(showNext, 80);
-        };
-        offscreen.src = d.frames[i++];
-      }
-      showNext();
-    }
-  }
-};
-
-function disconnect()
-{
-  ws?.close();
-  ws = null;
+  };
 }
+function disconnect() { ws?.close(); ws=null; }
 </script>
 </body>
 </html>
