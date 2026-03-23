@@ -301,6 +301,13 @@ async def handle_controller(ws):
             elif msg_type == "confirm_calibration":
                 ok = confirm_calibration()
                 if ok:
+                    global match_over, ball_history, frame_replay_buffer
+                    match_over = False
+                    ball_history.clear()
+                    frame_replay_buffer.clear()
+                    game.score["red"]   = 0
+                    game.score["blue"]  = 0
+                    game.ball_in_goal   = False
                     await broadcast(cameras,     {"type": "calibration_ok"})
                     await broadcast(controllers, {"type": "calibration_ok"})
                     await broadcast(spectators,  {"type": "calibration_ok"})
