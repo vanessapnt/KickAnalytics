@@ -3,3 +3,6 @@ aiohttp
 numpy
 opencv-python-headless
 onnxruntime
+psycopg2-binary
+python-dotenv
+asyncpg

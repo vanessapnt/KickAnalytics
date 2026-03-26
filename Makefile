@@ -52,7 +52,7 @@ build:
 # localhost:8001 -> container:8081 (WebSocket)
 
 run-local:
-	docker run -p $(HTTP_PORT):8080 -p $(WS_PORT):8081 $(IMAGE_NAME)
+	docker run -p $(HTTP_PORT):8080 -p $(WS_PORT):8081 --env-file .env $(IMAGE_NAME)
 # phone <- HTTPS -> ngrok <- HTTP -> container
 
 tunnel:
@@ -69,6 +69,7 @@ deploy-gcloud:
 		--platform managed \
 		--region europe-west1 \
 		--allow-unauthenticated
+		--set-env-vars DATABASE_URL=$${DATABASE_URL_PROD}
 
 clean:
 	docker ps -q --filter ancestor=$(IMAGE_NAME) | xargs -r docker stop || true
