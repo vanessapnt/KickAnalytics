@@ -6,3 +6,4 @@ onnxruntime
 psycopg2-binary
 python-dotenv
 asyncpg
+bcrypt

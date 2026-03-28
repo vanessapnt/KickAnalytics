@@ -9,6 +9,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
   --red:#e50914; --red-dark:#c0060f; --red-light:#fff0f0;
+  --blue:#1565c0; --blue-light:#e8f0fb;
   --bg:#f5f5f5; --card:#fff; --card-dark:#1b1b2f;
   --text:#1a1a1a; --muted:#888; --border:#e8e8e8; --radius:12px;
 }
@@ -24,7 +25,7 @@ header {
 .back-link { font-size:13px; font-weight:700; color:rgba(255,255,255,0.85); text-decoration:none; }
 .back-link:hover { color:white; }
 
-.page-content { max-width:900px; margin:0 auto; padding:20px; }
+.page-content { max-width:960px; margin:0 auto; padding:20px; }
 @media(max-width:767px) { .page-content { padding:0 0 24px; } }
 
 @media(min-width:768px) {
@@ -40,14 +41,15 @@ header {
   box-shadow:0 2px 10px rgba(0,0,0,0.15);
 }
 @media(max-width:767px) { .score-card { border-radius:0; } }
-
 .match-meta { display:flex; justify-content:space-between; font-size:11px; opacity:0.45; margin-bottom:14px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
 .score-row { display:flex; align-items:center; justify-content:space-between; }
-.team { display:flex; flex-direction:column; align-items:center; gap:6px; flex:1; }
+.team { display:flex; flex-direction:column; align-items:center; gap:4px; flex:1; }
 .team-badge { width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:17px; border:2px solid rgba(255,255,255,0.1); }
 .team-badge.red  { background:rgba(229,9,20,0.3); }
 .team-badge.blue { background:rgba(21,101,192,0.25); }
 .team-name { font-size:13px; font-weight:700; color:rgba(255,255,255,0.85); }
+.team-players { display:flex; flex-direction:column; align-items:center; gap:1px; }
+.team-player { font-size:11px; color:rgba(255,255,255,0.4); font-weight:600; min-height:14px; }
 .score-center { display:flex; align-items:center; gap:10px; flex-shrink:0; padding:0 12px; }
 .score-num { font-size:48px; font-weight:900; color:white; line-height:1; min-width:28px; text-align:center; }
 .score-sep { font-size:24px; color:rgba(255,255,255,0.2); }
@@ -59,48 +61,99 @@ header {
 .status-tag.ok  { background:rgba(76,175,80,0.3); color:#a5d6a7; }
 .status-tag.err { background:rgba(229,9,20,0.35); color:#ffcdd2; }
 
+.elo-row {
+  display:flex; justify-content:space-around; flex-wrap:wrap; gap:8px;
+  margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08);
+}
+.elo-item { display:flex; flex-direction:column; align-items:center; gap:2px; }
+.elo-label { font-size:10px; color:rgba(255,255,255,0.3); font-weight:700; text-transform:uppercase; letter-spacing:1px; }
+.elo-delta { font-size:16px; font-weight:900; }
+.elo-delta.pos { color:#a5d6a7; }
+.elo-delta.neg { color:#ffcdd2; }
+
 .controls-col { display:flex; flex-direction:column; gap:14px; }
 @media(max-width:767px) { .controls-col { padding:14px 12px 0; } }
-
 .section-title { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:8px; }
+
+.mode-toggle { display:grid; grid-template-columns:1fr 1fr; gap:0; border-radius:10px; overflow:hidden; border:1.5px solid var(--border); }
+.mode-btn {
+  background:var(--card); border:none; padding:13px;
+  font-size:14px; font-weight:800; color:var(--muted);
+  cursor:pointer; font-family:sans-serif; transition:all 0.15s;
+}
+.mode-btn:first-child { border-right:1px solid var(--border); }
+.mode-btn.active { background:var(--card-dark); color:white; }
+
+.teams-grid { display:flex; flex-direction:column; gap:12px; }
+.team-block { border:1.5px solid var(--border); border-radius:10px; overflow:hidden; }
+.team-block-header {
+  display:flex; align-items:center; gap:8px;
+  padding:9px 14px; font-size:11px; font-weight:800;
+  text-transform:uppercase; letter-spacing:1px;
+}
+.team-block-header.red-header  { background:var(--red-light);  color:var(--red); }
+.team-block-header.blue-header { background:var(--blue-light); color:var(--blue); }
+.team-block-body { padding:10px 12px; display:flex; flex-direction:column; gap:8px; background:var(--card); }
+
+.player-row { display:flex; align-items:center; gap:8px; }
+.player-row-label { font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1px; width:58px; flex-shrink:0; }
+
+.player-select {
+  flex:1; padding:9px 12px;
+  border:1.5px solid var(--border); border-radius:8px;
+  font-size:13px; font-weight:700; font-family:sans-serif;
+  background:var(--card); color:var(--text);
+  cursor:pointer; appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 10px center;
+  padding-right:28px;
+}
+.player-select:focus { outline:none; }
+.red-select:focus  { border-color:var(--red); }
+.blue-select:focus { border-color:var(--blue); }
+
+.role-toggle { display:flex; border-radius:8px; overflow:hidden; border:1.5px solid var(--border); flex-shrink:0; }
+.role-btn {
+  background:var(--bg); border:none; padding:8px 10px;
+  font-size:11px; font-weight:800; color:var(--muted);
+  cursor:pointer; font-family:sans-serif; white-space:nowrap; transition:all 0.12s;
+}
+.role-btn:first-child { border-right:1px solid var(--border); }
+.role-btn.active.red  { background:rgba(229,9,20,0.12);   color:var(--red); }
+.role-btn.active.blue { background:rgba(21,101,192,0.12); color:var(--blue); }
+
+.players-error { font-size:12px; color:var(--red); font-weight:600; display:none; margin-top:4px; }
 
 .btn-red {
   background:var(--red); border:none; border-radius:10px;
   padding:15px; font-size:14px; font-weight:800; color:white;
-  cursor:pointer; font-family:sans-serif;
-  transition:background 0.15s; width:100%;
+  cursor:pointer; font-family:sans-serif; transition:background 0.15s; width:100%;
 }
 .btn-red:hover:not(:disabled) { background:var(--red-dark); }
 .btn-red:disabled { opacity:0.35; cursor:not-allowed; }
-
 .btn-dark {
   background:var(--card-dark); border:none; border-radius:10px;
   padding:15px; font-size:14px; font-weight:800; color:white;
   cursor:pointer; font-family:sans-serif; width:100%;
 }
 .btn-dark:disabled { opacity:0.4; cursor:not-allowed; }
-
 .btn-outline {
   background:var(--card); border:1.5px solid var(--border);
   border-radius:10px; padding:15px; font-size:14px;
   font-weight:800; color:var(--muted); cursor:pointer;
-  font-family:sans-serif; width:100%;
-  transition:background 0.15s;
+  font-family:sans-serif; width:100%; transition:background 0.15s;
 }
 .btn-outline:hover:not(:disabled) { background:var(--bg); }
 .btn-outline:disabled { opacity:0.35; cursor:not-allowed; }
-
 .btn-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 
 .preview-empty {
   background:var(--card-dark); border-radius:var(--radius);
-  padding:36px 16px;
-  display:flex; flex-direction:column; align-items:center; gap:10px;
+  padding:36px 16px; display:flex; flex-direction:column; align-items:center; gap:10px;
 }
 @media(max-width:767px) { .preview-empty { border-radius:0; } }
 .preview-empty .icon { font-size:38px; opacity:0.2; }
 .preview-empty .hint { font-size:13px; color:rgba(255,255,255,0.25); font-weight:600; text-align:center; line-height:1.5; }
-
 .preview-card {
   background:var(--card); border-radius:var(--radius);
   overflow:hidden; border:1px solid var(--border);
@@ -111,9 +164,9 @@ header {
 </style>
 <script>
 function getWsBase() {
-  const proto=window.location.protocol==='https:'?'wss':'ws';
-  const ws_port=parseInt(window.location.port||(proto==='wss'?443:80))+1;
-  return `${proto}://${window.location.hostname}:${ws_port}`;
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const port  = window.location.port ? `:${window.location.port}` : '';
+  return `${proto}://${window.location.hostname}${port}/ws`;
 }
 </script>
 </head>
@@ -121,25 +174,41 @@ function getWsBase() {
 
 <header>
   <div class="logo">KickAnalytics</div>
-  <a href="/" class="back-link">← Retour</a>
+  <a href="/" class="back-link">Retour</a> <!--navigation link-->
 </header>
 
 <div class="page-content">
   <div class="ctrl-layout">
-
-    <div>
+    <div> <!--left column: scorecard + preview-->
       <div class="score-card">
-        <div class="match-meta"><span>Contrôleur</span><span>Baby-foot</span></div>
+        <div class="match-meta">
+          <span>Contrôleur</span>
+          <span id="metaMode">1v1</span>
+        </div>
         <div class="score-row">
-          <div class="team"><div class="team-badge red">🔴</div><span class="team-name">Rouge</span></div>
+          <div class="team">
+            <div class="team-badge red">🔴</div>
+            <span class="team-name">Rouge</span>
+            <div class="team-players" id="teamRedNames">
+              <span class="team-player">—</span>
+            </div>
+          </div>
           <div class="score-center">
             <span class="score-num" id="scoreRed">0</span>
-            <span class="score-sep">–</span>
+            <span class="score-sep">-</span>
             <span class="score-num" id="scoreBlue">0</span>
           </div>
-          <div class="team"><div class="team-badge blue">🔵</div><span class="team-name">Bleu</span></div>
+          <div class="team">
+            <div class="team-badge blue">🔵</div>
+            <span class="team-name">Bleu</span>
+            <div class="team-players" id="teamBlueNames">
+              <span class="team-player">—</span>
+            </div>
+          </div>
         </div>
         <div><span class="status-tag" id="statusTag">Déconnecté</span></div>
+        <!-- ELO deltas après match -->
+        <div class="elo-row" id="eloRow" style="display:none"></div>
       </div>
 
       <div style="margin-top:14px;">
@@ -151,45 +220,164 @@ function getWsBase() {
       </div>
     </div>
 
-    <div class="controls-col">
+    <div class="controls-col"> <!--right column : controls-->
+
+      <!-- Connexion -->
       <div>
         <div class="section-title">Connexion</div>
         <button class="btn-dark" id="btnConnect" onclick="connectWs()">🔌 Se connecter</button>
       </div>
 
+      <!-- Calibration -->
       <div>
         <div class="section-title">Calibration terrain</div>
         <div class="btn-row">
-          <button class="btn-red" id="btnCalibrate" onclick="triggerCalibration()" disabled>🎯 Calibrer</button>
-          <button class="btn-outline" id="btnReady" onclick="confirmCalibration()" style="display:none">✅ Prêt !</button>
-          <button class="btn-outline" id="btnRetry" onclick="triggerCalibration()" style="display:none">🔄 Relancer</button>
+          <button class="btn-red"     id="btnCalibrate" onclick="triggerCalibration()" disabled>🎯 Calibrer</button>
+          <button class="btn-outline" id="btnReady"     onclick="confirmCalibration()" style="display:none">✅ Prêt !</button>
+          <button class="btn-outline" id="btnRetry"     onclick="triggerCalibration()" style="display:none">🔄 Relancer</button>
         </div>
       </div>
-    </div>
 
+    </div>
   </div>
 </div>
 
 <script>
-let ws=null;
-function setStatus(t,type=''){const el=document.getElementById('statusTag');el.textContent=t;el.className='status-tag'+(type?' '+type:'');}
-function connectWs(){
-  document.getElementById('btnConnect').disabled=true;
-  ws=new WebSocket(`${getWsBase()}/controller`);
-  ws.onopen=()=>setStatus('Connecté ✓','ok');
-  ws.onclose=()=>{document.getElementById('btnCalibrate').disabled=true;document.getElementById('btnReady').style.display=document.getElementById('btnRetry').style.display='none';setStatus('Déconnecté');document.getElementById('btnConnect').disabled=false;};
-  ws.onmessage=(e)=>{
-    const d=JSON.parse(e.data);
-    if(d.type==='camera_ready'){document.getElementById('btnCalibrate').disabled=false;setStatus('📱 Caméra prête');}
-    if(d.type==='calibration_preview'){document.getElementById('previewImg').src=d.image;document.getElementById('previewEmpty').style.display='none';document.getElementById('previewCard').style.display='block';document.getElementById('btnReady').style.display=document.getElementById('btnRetry').style.display='block';setStatus('Vérifie le contour');}
-    if(d.type==='calibration_ok'){document.getElementById('previewCard').style.display='none';document.getElementById('previewEmpty').style.display='flex';document.getElementById('btnReady').style.display=document.getElementById('btnRetry').style.display='none';setStatus('🟢 Match en cours','ok');}
-    if(d.type==='calibration_failed'){document.getElementById('previewCard').style.display='none';document.getElementById('previewEmpty').style.display='flex';document.getElementById('btnReady').style.display=document.getElementById('btnRetry').style.display='none';setStatus('❌ Échec — réessaie','err');}
-    if(d.type==='goal'&&d.score){document.getElementById('scoreRed').textContent=d.score.red;document.getElementById('scoreBlue').textContent=d.score.blue;}
-    if(d.type==='match_end'){document.getElementById('scoreRed').textContent=d.score.red;document.getElementById('scoreBlue').textContent=d.score.blue;setStatus('🏁 Match terminé');document.getElementById('btnCalibrate').disabled=true;}
+let ws   = null;
+
+// roles[team][playerIndex 1|2] = 'attacker' | 'defender'
+const roles = { red: { 1:'attacker', 2:'defender' }, blue: { 1:'attacker', 2:'defender' } };
+
+// ── Status ──
+function setStatus(t, type='') {
+  const el = document.getElementById('statusTag');
+  el.textContent = t;
+  el.className = 'status-tag' + (type ? ' ' + type : '');
+}
+
+// ── Rôle ──
+function setRole(team, idx, role, btn) {
+  roles[team][idx] = role;
+  const toggleEl = document.getElementById(`role${team[0].toUpperCase()+team.slice(1)}${idx}`);
+  toggleEl.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+
+// ── Affichage équipes dynamiques ──
+function renderTeams(match) {
+  const red = match.red || [];
+  const blue = match.blue || [];
+  document.getElementById('teamRedList').innerHTML = red.map(p => `<span class="team-player">${p.display_name || p.username}</span>`).join('') || '<span class="team-player">—</span>';
+  document.getElementById('teamBlueList').innerHTML = blue.map(p => `<span class="team-player">${p.display_name || p.username}</span>`).join('') || '<span class="team-player">—</span>';
+  document.getElementById('teamRedNames').innerHTML = document.getElementById('teamRedList').innerHTML;
+  document.getElementById('teamBlueNames').innerHTML = document.getElementById('teamBlueList').innerHTML;
+}
+
+// ── ELO post-match ──
+function renderEloRow(d) {
+  const row = document.getElementById('eloRow');
+  row.style.display = 'flex';
+  const make = (label, delta) => {
+    const sign = delta >= 0 ? '+' : '';
+    const cls  = delta >= 0 ? 'pos' : 'neg';
+    return `<div class="elo-item"><span class="elo-label">${label}</span><span class="elo-delta ${cls}">${sign}${delta}</span></div>`;
+  };
+  if (d.mode === '1v1') {
+    row.innerHTML = make('ELO Rouge', d.red[0].delta) + make('ELO Bleu', d.blue[0].delta);
+  } else {
+    row.innerHTML =
+      make(d.red[0].username,  d.red[0].delta)  +
+      make(d.red[1].username,  d.red[1].delta)  +
+      make(d.blue[0].username, d.blue[0].delta) +
+      make(d.blue[1].username, d.blue[1].delta);
+  }
+}
+
+// ── WebSocket ──
+
+function connectWs() {
+  document.getElementById('btnConnect').disabled = true;
+  ws = new WebSocket(`${getWsBase()}/controller`);
+
+  ws.onopen = () => { setStatus('Connecté ✓', 'ok'); };
+
+  ws.onclose = () => {
+    document.getElementById('btnCalibrate').disabled = true;
+    document.getElementById('btnReady').style.display =
+    document.getElementById('btnRetry').style.display = 'none';
+    setStatus('Déconnecté');
+    document.getElementById('btnConnect').disabled = false;
+  };
+
+  ws.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+
+    if (d.type === 'mm_start' && d.match) {
+      renderTeams(d.match);
+      document.getElementById('metaMode').textContent = d.match.mode;
+    }
+    if (d.type === 'camera_ready') {
+      document.getElementById('btnCalibrate').disabled = false;
+      setStatus('📱 Caméra prête');
+    }
+    if (d.type === 'calibration_preview') {
+      document.getElementById('previewImg').src             = d.image;
+      document.getElementById('previewEmpty').style.display = 'none';
+      document.getElementById('previewCard').style.display  = 'block';
+      document.getElementById('btnReady').style.display     =
+      document.getElementById('btnRetry').style.display     = 'block';
+      setStatus('Vérifie le contour');
+    }
+    if (d.type === 'calibration_ok') {
+      document.getElementById('previewCard').style.display  = 'none';
+      document.getElementById('previewEmpty').style.display = 'none';
+      document.getElementById('btnReady').style.display     =
+      document.getElementById('btnRetry').style.display     = 'none';
+      setStatus('🟢 Match en cours', 'ok');
+    }
+    if (d.type === 'calibration_failed') {
+      document.getElementById('previewCard').style.display  = 'none';
+      document.getElementById('previewEmpty').style.display = 'flex';
+      document.getElementById('btnReady').style.display     =
+      document.getElementById('btnRetry').style.display     = 'none';
+      setStatus('❌ Échec — réessaie', 'err');
+    }
+    if (d.type === 'goal' && d.score) {
+      document.getElementById('scoreRed').textContent  = d.score.red;
+      document.getElementById('scoreBlue').textContent = d.score.blue;
+    }
+    if (d.type === 'match_end') {
+      document.getElementById('scoreRed').textContent  = d.score.red;
+      document.getElementById('scoreBlue').textContent = d.score.blue;
+      setStatus('🏁 Match terminé');
+      document.getElementById('btnCalibrate').disabled = true;
+      document.getElementById('previewCard').style.display  = 'none';
+      document.getElementById('previewEmpty').style.display = 'none';
+    }
+    if (d.type === 'elo_update') renderEloRow(d);
   };
 }
-function triggerCalibration(){ws?.send(JSON.stringify({type:'trigger_calibration'}));document.getElementById('previewCard').style.display='none';document.getElementById('previewEmpty').style.display='flex';document.getElementById('btnReady').style.display=document.getElementById('btnRetry').style.display='none';setStatus('🔍 Détection terrain...');}
-function confirmCalibration(){ws?.send(JSON.stringify({type:'confirm_calibration'}));document.getElementById('previewCard').style.display='none';document.getElementById('previewEmpty').style.display='flex';document.getElementById('btnReady').style.display=document.getElementById('btnRetry').style.display='none';setStatus('🟢 Match en cours','ok');}
+
+// ── Calibration ──
+
+function triggerCalibration() {
+  ws?.send(JSON.stringify({ type: 'trigger_calibration' }));
+  document.getElementById('previewCard').style.display  = 'none';
+  document.getElementById('previewEmpty').style.display = 'flex';
+  document.getElementById('btnReady').style.display     =
+  document.getElementById('btnRetry').style.display     = 'none';
+  setStatus('🔍 Détection terrain...');
+}
+
+function confirmCalibration() {
+  ws?.send(JSON.stringify({ type: 'confirm_calibration' }));
+  document.getElementById('previewCard').style.display  = 'none';
+  document.getElementById('previewEmpty').style.display = 'none';
+  document.getElementById('btnReady').style.display     =
+  document.getElementById('btnRetry').style.display     = 'none';
+  setStatus('🟢 Match en cours', 'ok');
+}
 </script>
 </body>
 </html>

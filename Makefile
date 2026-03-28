@@ -1,7 +1,5 @@
 IMAGE_NAME   = kick-analytics
-HTTP_PORT    = 8000
-WS_PORT      = 8001
-
+HTTP_PORT    = 8080
 -include .env
 export
 
@@ -48,12 +46,9 @@ install-ngrok:
 
 build:
 	docker build -t $(IMAGE_NAME) .
-# localhost:8000 -> container:8080 (HTTP static files)
-# localhost:8001 -> container:8081 (WebSocket)
 
 run-local:
-	docker run -p $(HTTP_PORT):8080 -p $(WS_PORT):8081 --env-file .env $(IMAGE_NAME)
-# phone <- HTTPS -> ngrok <- HTTP -> container
+	docker run -p $(HTTP_PORT):8080 --memory=2g --env-file .env $(IMAGE_NAME)
 
 tunnel:
 	ngrok http $(HTTP_PORT)
@@ -62,18 +57,25 @@ gcloud-auth:
 	gcloud auth login
 	gcloud config set project $${PROJECT_ID}
 
+configure-gcloud:
+	gcloud run services update $(IMAGE_NAME) \
+		--region europe-west1 \
+		--cpu 2 \
+		--max-instances 1
+
 deploy-gcloud:
 	gcloud builds submit --tag gcr.io/$${PROJECT_ID}/$(IMAGE_NAME)
 	gcloud run deploy $(IMAGE_NAME) \
 		--image gcr.io/$${PROJECT_ID}/$(IMAGE_NAME) \
 		--platform managed \
 		--region europe-west1 \
-		--allow-unauthenticated
-		--set-env-vars DATABASE_URL=$${DATABASE_URL_PROD}
+		--allow-unauthenticated \
+		--port 8080 \
+		--set-env-vars DATABASE_URL=$${DATABASE_URL}
 
 clean:
 	docker ps -q --filter ancestor=$(IMAGE_NAME) | xargs -r docker stop || true
 	docker ps -aq --filter ancestor=$(IMAGE_NAME) | xargs -r docker rm || true
 	docker rmi $(IMAGE_NAME) || true
 
-.PHONY: info test install-docker install-ngrok build run-local tunnel gcloud-auth deploy-gcloud clean
+.PHONY: info test install-docker install-ngrok build run-local tunnel gcloud-auth deploy-gcloud clean configure-gcloud

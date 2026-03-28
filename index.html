@@ -249,12 +249,115 @@ canvas#terrain { display: block; width: 100%; height: auto; }
 }
 #heatmapCanvas { display: block; width: 100%; }
 
+.leaderboard-row {
+  background: var(--card); border-radius: 10px; padding: 12px 16px;
+  border: 1px solid var(--border); display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+@media (max-width:767px) { .leaderboard-row { border-radius:0; border-left:none; border-right:none; } }
+.lb-rank { font-size: 16px; font-weight: 900; color: var(--muted); width: 24px; text-align:center; }
+.lb-rank.gold   { color: #f9a825; }
+.lb-rank.silver { color: #9e9e9e; }
+.lb-rank.bronze { color: #8d6e63; }
+.lb-name { flex: 1; }
+.lb-display { font-size: 14px; font-weight: 800; color: var(--text); }
+.lb-username { font-size: 11px; color: var(--muted); font-weight: 600; }
+.lb-elo { font-size: 18px; font-weight: 900; color: var(--red); }
+.lb-stats { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+.lb-stat-line { font-size: 11px; color: var(--muted); font-weight: 600; }
+
 .section-header {
   font-size: 11px; font-weight: 700; color: var(--muted);
   text-transform: uppercase; letter-spacing: 1.5px;
   margin-bottom: 10px;
 }
 @media (max-width: 767px) { .section-header { padding: 14px 12px 4px; margin: 0; } }
+
+/* ── Auth Modal ── */
+.auth-overlay {
+  position: fixed; inset: 0; z-index: 999;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+.auth-overlay.hidden { display: none; }
+@keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+
+.auth-card {
+  background: var(--card);
+  border-radius: 18px;
+  width: 100%; max-width: 380px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.22);
+  overflow: hidden;
+  animation: slideUp 0.25s cubic-bezier(.22,.68,0,1.2);
+}
+@keyframes slideUp { from { transform:translateY(24px); opacity:0 } to { transform:translateY(0); opacity:1 } }
+
+.auth-header {
+  background: var(--red);
+  padding: 22px 24px 18px;
+}
+.auth-header .logo { font-size: 18px; font-weight: 900; color: white; letter-spacing: -0.5px; }
+.auth-header .subtitle { font-size: 12px; color: rgba(255,255,255,0.7); font-weight: 600; margin-top: 2px; }
+
+.auth-tabs {
+  display: grid; grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--border);
+}
+.auth-tab {
+  padding: 13px; font-size: 13px; font-weight: 800;
+  text-align: center; cursor: pointer; color: var(--muted);
+  border: none; background: none; font-family: sans-serif;
+  border-bottom: 2px solid transparent; transition: all 0.15s;
+}
+.auth-tab.active { color: var(--red); border-bottom-color: var(--red); }
+
+.auth-body { padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 12px; }
+
+.auth-field { display: flex; flex-direction: column; gap: 5px; }
+.auth-label { font-size: 10px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.auth-input {
+  padding: 11px 14px;
+  border: 1.5px solid var(--border); border-radius: 9px;
+  font-size: 14px; font-family: sans-serif; color: var(--text);
+  background: var(--bg); outline: none; transition: border-color 0.15s;
+}
+.auth-input:focus { border-color: var(--red); background: white; }
+
+.auth-error {
+  font-size: 12px; color: var(--red); font-weight: 600;
+  background: #fff0f0; border-radius: 8px; padding: 9px 12px;
+  display: none;
+}
+.auth-error.show { display: block; }
+
+.auth-submit {
+  background: var(--red); border: none; border-radius: 10px;
+  padding: 14px; font-size: 14px; font-weight: 800; color: white;
+  cursor: pointer; font-family: sans-serif; width: 100%;
+  transition: background 0.15s; margin-top: 4px;
+}
+.auth-submit:hover:not(:disabled) { background: var(--red-dark); }
+.auth-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.auth-user-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--card); border-radius: 10px;
+  padding: 11px 14px; border: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+.auth-user-bar .user-info { display: flex; flex-direction: column; }
+.auth-user-bar .user-name { font-size: 13px; font-weight: 800; color: var(--text); }
+.auth-user-bar .user-elo  { font-size: 11px; color: var(--muted); font-weight: 600; }
+.auth-user-bar .btn-logout {
+  font-size: 12px; font-weight: 700; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 7px; padding: 6px 12px;
+  cursor: pointer; font-family: sans-serif;
+}
+.auth-user-bar .btn-logout:hover { color: var(--red); border-color: var(--red); }
 
 footer {
   display: flex; justify-content: space-around;
@@ -275,12 +378,219 @@ footer button.active::before {
   width: 28px; height: 3px; background: var(--red); border-radius: 0 0 3px 3px;
 }
 footer button .icon { font-size: 20px; }
+
+/* ── Table card ── */
+.table-card {
+  background: var(--card); border-radius: var(--radius);
+  border: 1.5px solid var(--border); padding: 18px;
+  cursor: pointer; transition: box-shadow 0.15s, transform 0.1s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06); user-select: none;
+}
+.table-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.1); transform: translateY(-1px); }
+.table-card.occupied { cursor: default; }
+.table-card.occupied:hover { transform: none; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+@media(max-width:767px) { .table-card { border-radius:0; border-left:none; border-right:none; } }
+.table-card-top { display:flex; align-items:center; gap:14px; }
+.table-icon { font-size:32px; flex-shrink:0; }
+.table-title { font-size:16px; font-weight:900; color:var(--text); }
+.table-subtitle { font-size:12px; color:var(--muted); font-weight:600; margin-top:2px; }
+.table-status-pill {
+  margin-left:auto; flex-shrink:0; border-radius:20px; padding:5px 12px;
+  font-size:11px; font-weight:800; letter-spacing:0.3px;
+}
+.table-status-pill.idle        { background:#e8f5e9; color:#2e7d32; }
+.table-status-pill.matchmaking { background:#fff8e1; color:#f57f17; }
+.table-status-pill.calibrating { background:#e3f2fd; color:#1565c0; }
+.table-status-pill.playing     { background:rgba(229,9,20,0.1); color:var(--red); }
+.table-score-row {
+  display:flex; align-items:center; justify-content:center; gap:14px;
+  margin-top:14px; padding-top:14px; border-top:1px solid var(--border);
+}
+.table-score-num { font-size:38px; font-weight:900; color:var(--text); }
+.table-score-sep { font-size:22px; color:var(--muted); }
+
+/* ── Matchmaking panel ── */
+.mm-panel {
+  background:var(--card); border-radius:var(--radius);
+  border:1.5px solid var(--border); margin-top:12px;
+  overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,0.06);
+}
+@media(max-width:767px) { .mm-panel { border-radius:0; border-left:none; border-right:none; margin-top:0; border-top:none; } }
+.mm-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px; border-bottom:1px solid var(--border);
+  font-size:13px; font-weight:800; color:var(--text);
+}
+.mm-leave {
+  font-size:12px; font-weight:700; color:var(--muted);
+  background:var(--bg); border:1px solid var(--border);
+  border-radius:7px; padding:5px 11px; cursor:pointer; font-family:sans-serif;
+}
+.mm-leave:hover { color:var(--red); border-color:var(--red); }
+.mm-players { display:flex; flex-direction:column; }
+.mm-player-row {
+  display:flex; align-items:center; gap:10px;
+  padding:11px 16px; border-bottom:1px solid var(--border);
+}
+.mm-avatar {
+  width:32px; height:32px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:900; color:white; flex-shrink:0;
+}
+.mm-player-name { font-size:13px; font-weight:800; flex:1; }
+.mm-player-elo  { font-size:11px; color:var(--muted); font-weight:700; margin-right:6px; }
+.mm-ready-chip   { font-size:10px; font-weight:800; padding:3px 8px; border-radius:5px; background:#e8f5e9; color:#2e7d32; }
+.mm-waiting-chip { font-size:10px; font-weight:700; padding:3px 8px; border-radius:5px; background:var(--bg); color:var(--muted); }
+.mm-slot { padding:11px 16px; border-bottom:1px solid var(--border); font-size:12px; color:var(--muted); font-weight:600; font-style:italic; }
+.mm-hint { padding:10px 16px; font-size:12px; color:var(--muted); font-weight:600; text-align:center; border-top:1px solid var(--border); }
+.mm-panel .btn-red { border-radius:0; }
+
+/* ── Mode choose + Role panel ── */
+.mode-choose {
+  background:var(--card); border-radius:var(--radius);
+  border:1.5px solid var(--border); padding:18px; margin-top:12px;
+}
+@media(max-width:767px) { .mode-choose { border-radius:0; border-left:none; border-right:none; } }
+.role-panel {
+  background:var(--card-dark); border-radius:var(--radius);
+  padding:28px 24px; margin-top:12px; text-align:center;
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+}
+@media(max-width:767px) { .role-panel { border-radius:0; } }
+.role-panel-icon  { font-size:44px; }
+.role-panel-title { font-size:18px; font-weight:900; color:white; }
+.role-panel-sub   { font-size:13px; color:rgba(255,255,255,0.5); font-weight:600; margin-bottom:8px; }
+.role-panel .btn-red { max-width:200px; text-decoration:none; display:block; text-align:center; }
+.section-title { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
+.mode-toggle { display:grid; grid-template-columns:1fr 1fr; border-radius:10px; overflow:hidden; border:1.5px solid var(--border); }
+.mode-btn { background:var(--card); border:none; padding:13px; font-size:14px; font-weight:800; color:var(--muted); cursor:pointer; font-family:sans-serif; transition:all 0.15s; }
+.mode-btn:first-child { border-right:1px solid var(--border); }
+.mode-btn.active { background:var(--card-dark); color:white; }
+.btn-red { background:var(--red); border:none; border-radius:10px; padding:15px; font-size:14px; font-weight:800; color:white; cursor:pointer; font-family:sans-serif; width:100%; transition:background 0.15s; }
+.btn-red:hover:not(:disabled) { background:var(--red-dark); }
+.btn-outline { background:var(--card); border:1.5px solid var(--border); border-radius:10px; padding:15px; font-size:14px; font-weight:800; color:var(--muted); cursor:pointer; font-family:sans-serif; width:100%; }
+.header-avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(255,255,255,0.22);
+  border: 2px solid rgba(255,255,255,0.4);
+  color: white; font-size: 14px; font-weight: 900;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, transform 0.1s;
+  font-family: sans-serif; flex-shrink: 0;
+}
+.header-avatar:hover { background: rgba(255,255,255,0.35); transform: scale(1.08); }
+
+/* ── Profile Drawer ── */
+.profile-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(3px);
+  animation: fadeIn 0.18s ease;
+  display: none;
+}
+.profile-overlay.open { display: block; }
+.profile-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 201;
+  width: min(360px, 92vw);
+  background: var(--card);
+  box-shadow: -8px 0 32px rgba(0,0,0,0.18);
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(.22,.68,0,1.1);
+}
+.profile-drawer.open { transform: translateX(0); }
+
+.profile-drawer-header {
+  background: var(--red);
+  padding: 20px 18px 18px;
+  display: flex; align-items: center; gap: 14px;
+}
+.profile-drawer-avatar {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: rgba(255,255,255,0.25);
+  border: 2px solid rgba(255,255,255,0.5);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 900; color: white; flex-shrink: 0;
+}
+.profile-drawer-name  { font-size: 16px; font-weight: 900; color: white; }
+.profile-drawer-user  { font-size: 12px; color: rgba(255,255,255,0.7); font-weight: 600; margin-top: 1px; }
+.profile-drawer-close {
+  margin-left: auto; background: rgba(255,255,255,0.18); border: none;
+  color: white; font-size: 18px; width: 32px; height: 32px;
+  border-radius: 50%; cursor: pointer; font-family: sans-serif;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.profile-drawer-close:hover { background: rgba(255,255,255,0.32); }
+
+.profile-drawer-body { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+
+.profile-elo-banner {
+  background: var(--card-dark); border-radius: 12px;
+  padding: 16px; display: flex; align-items: center; gap: 14px;
+}
+.profile-elo-val { font-size: 38px; font-weight: 900; color: var(--red); line-height: 1; }
+.profile-elo-label { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 1px; }
+.profile-elo-sub { font-size: 12px; color: rgba(255,255,255,0.55); font-weight: 600; margin-top: 2px; }
+
+.profile-stats-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+.profile-stat-card {
+  background: var(--bg); border-radius: 10px;
+  padding: 12px 6px; text-align: center;
+  border: 1px solid var(--border);
+}
+.profile-stat-val { font-size: 20px; font-weight: 900; color: var(--text); }
+.profile-stat-val.red { color: var(--red); }
+.profile-stat-lbl { font-size: 9px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
+
+.profile-section-title {
+  font-size: 10px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px;
+}
+
+.profile-history { display: flex; flex-direction: column; gap: 7px; }
+.profile-match-row {
+  background: var(--bg); border-radius: 10px;
+  padding: 11px 14px; border: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.profile-match-result {
+  width: 28px; height: 28px; border-radius: 7px;
+  font-size: 11px; font-weight: 900; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.profile-match-result.win  { background: #e8f5e9; color: #2e7d32; }
+.profile-match-result.loss { background: #ffebee; color: var(--red); }
+.profile-match-result.draw { background: #f5f5f5; color: var(--muted); }
+.profile-match-score { font-size: 13px; font-weight: 800; color: var(--text); flex: 1; }
+.profile-match-meta  { font-size: 10px; color: var(--muted); font-weight: 600; }
+.profile-match-elo   { font-size: 12px; font-weight: 800; }
+.profile-match-elo.pos { color: #2e7d32; }
+.profile-match-elo.neg { color: var(--red); }
+.profile-match-elo.neu { color: var(--muted); }
+
+.profile-empty {
+  text-align: center; padding: 28px 16px;
+  font-size: 13px; color: var(--muted); font-weight: 600;
+}
+
+.profile-drawer-footer {
+  padding: 14px 18px; border-top: 1px solid var(--border);
+}
+.profile-drawer-footer .btn-logout-full {
+  width: 100%; background: var(--bg); border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 13px; font-size: 13px; font-weight: 800;
+  color: var(--muted); cursor: pointer; font-family: sans-serif;
+  transition: all 0.15s;
+}
+.profile-drawer-footer .btn-logout-full:hover { color: var(--red); border-color: var(--red); background: #fff0f0; }
 </style>
 <script>
 function getWsBase() {
-  const proto   = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws_port = parseInt(window.location.port || (proto === 'wss' ? 443 : 80)) + 1;
-  return `${proto}://${window.location.hostname}:${ws_port}`;
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const port  = window.location.port ? `:${window.location.port}` : '';
+  return `${proto}://${window.location.hostname}${port}/ws`;
 }
 </script>
 </head>
@@ -288,13 +598,18 @@ function getWsBase() {
 
 <header>
   <div class="logo">KickAnalytics</div>
-  <div class="live-badge"><span class="live-dot"></span>EN DIRECT</div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div class="live-badge"><span class="live-dot"></span>EN DIRECT</div>
+    <button class="header-avatar" id="headerAvatar" onclick="toggleProfileDrawer()" style="display:none" title="Mon compte">
+      <span id="headerAvatarLetter">?</span>
+    </button>
+  </div>
 </header>
 
 <nav>
   <button class="active" onclick="switchNav(this,'live')">Live</button>
   <button onclick="switchNav(this,'jouer')">Jouer</button>
-  <button onclick="switchNav(this,'stats')">Stats</button>
+  <button onclick="switchNav(this,'stats')">Classement</button>
 </nav>
 
 <div id="sec-live" class="section active">
@@ -353,50 +668,140 @@ function getWsBase() {
   </div>
 </div>
 
-<div id="sec-jouer" class="section">
-  <div class="page-content">
-    <div class="jouer-layout">
-      <a href="/camera.html" class="nav-card">
-        <div class="nav-card-left">
-          <div class="nav-card-icon red-bg">📷</div>
-          <div>
-            <div class="nav-card-title">Caméra</div>
-            <div class="nav-card-sub">Filmer le terrain</div>
-          </div>
-        </div>
-        <span class="nav-card-arrow">›</span>
-      </a>
-      <a href="/controller.html" class="nav-card">
-        <div class="nav-card-left">
-          <div class="nav-card-icon blue-bg">🎛</div>
-          <div>
-            <div class="nav-card-title">Contrôleur</div>
-            <div class="nav-card-sub">Gérer le match</div>
-          </div>
-        </div>
-        <span class="nav-card-arrow">›</span>
-      </a>
+<!-- Auth Modal -->
+<div class="auth-overlay hidden" id="authOverlay">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="logo">KickAnalytics</div>
+      <div class="subtitle">Connecte-toi pour accéder au jeu</div>
     </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin"    onclick="authSwitchTab('login')">Connexion</button>
+      <button class="auth-tab"        id="tabRegister" onclick="authSwitchTab('register')">Inscription</button>
+    </div>
+    <div class="auth-body">
+      <div class="auth-error" id="authError"></div>
+      <div class="auth-field">
+        <label class="auth-label">Pseudo</label>
+        <input class="auth-input" id="authUsername" type="text" placeholder="ton_pseudo" autocomplete="username" autocapitalize="none"/>
+      </div>
+      <div class="auth-field" id="fieldDisplayName" style="display:none">
+        <label class="auth-label">Nom affiché</label>
+        <input class="auth-input" id="authDisplayName" type="text" placeholder="Ton Nom"/>
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">Mot de passe</label>
+        <input class="auth-input" id="authPassword" type="password" placeholder="••••••" autocomplete="current-password"/>
+      </div>
+      <button class="auth-submit" id="authSubmit" onclick="authSubmit()">Se connecter</button>
+    </div>
+  </div>
+</div>
+
+<div id="sec-jouer" class="section">
+  <div class="page-content" style="max-width:520px">
+
+    <!-- Barre joueur connecté -->
+    <div class="auth-user-bar" id="userBar" style="display:none;margin-bottom:16px;">
+      <div class="user-info">
+        <span class="user-name" id="userBarName">—</span>
+        <span class="user-elo"  id="userBarElo">ELO —</span>
+      </div>
+      <button class="btn-logout" onclick="authLogout()">Déconnexion</button>
+    </div>
+
+
+
+    <!-- Choix du mode de jeu -->
+    <div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;">
+      <button class="mode-btn active" id="mcBtn1v1" onclick="mcSelect('1v1')">1v1</button>
+      <button class="mode-btn" id="mcBtn2v2" onclick="mcSelect('2v2')">2v2</button>
+    </div>
+    <!-- Bouton matchmaking -->
+    <button class="btn-red" id="btnMatchmaking" style="width:100%;margin-bottom:18px;font-size:18px;padding:18px 0;" onclick="startMatchmaking()">Chercher une partie</button>
+
+    <!-- Carte babyfoot (affichage état table, plus de clic matchmaking ici) -->
+    <div class="table-card" id="tableCard">
+      <div class="table-card-top">
+        <div class="table-icon">⚽</div>
+        <div>
+          <div class="table-title">Babyfoot</div>
+          <div class="table-subtitle" id="tableSubtitle">Chargement...</div>
+        </div>
+        <div class="table-status-pill" id="tableStatusPill">—</div>
+      </div>
+      <!-- Score live (visible pendant calibrating/playing) -->
+      <div class="table-score-row" id="tableScoreRow" style="display:none">
+        <span class="table-score-num" id="tsRed">0</span>
+        <span class="table-score-sep">–</span>
+        <span class="table-score-num" id="tsBlue">0</span>
+      </div>
+    </div>
+
+    <!-- Salle d'attente (matchmaking) -->
+    <div class="mm-panel" id="mmPanel" style="display:none">
+      <div class="mm-header">
+        <span id="mmTitle">Salle d'attente</span>
+        <button class="mm-leave" onclick="mmLeave()">Quitter</button>
+      </div>
+      <div class="mm-players" id="mmPlayers"></div>
+      <div class="mm-hint" id="mmHint"></div>
+      <button class="btn-red" id="btnReady" onclick="mmReady()" style="display:none">✓ Je suis prêt</button>
+    </div>
+
+    <!-- Choix mode (affiché avant de rejoindre) -->
+    <div class="mode-choose" id="modeChoose" style="display:none">
+      <div class="section-title" style="margin-bottom:12px">Mode de jeu</div>
+      <div class="mode-toggle" style="margin-bottom:16px">
+        <button class="mode-btn active" id="mcBtn1v1" onclick="mcSelect('1v1')">1v1</button>
+        <button class="mode-btn"        id="mcBtn2v2" onclick="mcSelect('2v2')">2v2</button>
+      </div>
+      <button class="btn-red" onclick="mmJoin()">Rejoindre</button>
+      <button class="btn-outline" style="margin-top:10px" onclick="hideModeChoose()">Annuler</button>
+    </div>
+
+    <!-- Redirect après mm_start -->
+    <div class="role-panel" id="rolePanel" style="display:none">
+      <div class="role-panel-icon" id="rolePanelIcon">📷</div>
+      <div class="role-panel-title" id="rolePanelTitle">Ton rôle</div>
+      <div class="role-panel-sub" id="rolePanelSub"></div>
+      <a class="btn-red" id="rolePanelBtn" href="#">Ouvrir</a>
+    </div>
+
   </div>
 </div>
 
 <div id="sec-stats" class="section">
   <div class="page-content">
-    <div class="stats-empty" id="statsEmpty">
-      <span class="icon">📊</span>
-      <span class="hint">Les stats apparaîtront ici en fin de match</span>
-    </div>
-    <div id="heatmapCard">
-      <canvas id="heatmapCanvas" width="400" height="200"></canvas>
-    </div>
+    <div class="section-header" style="margin-bottom:12px;">🏆 Classement</div>
+    <div id="leaderboardBody" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div>
 </div>
 
 <footer>
   <button class="active" id="fb-live"  onclick="footerNav('live',this)"><span class="icon">⚽</span>Live</button>
   <button id="fb-jouer" onclick="footerNav('jouer',this)"><span class="icon">🎮</span>Jouer</button>
-  <button id="fb-stats" onclick="footerNav('stats',this)"><span class="icon">📊</span>Stats</button>
+  <button id="fb-stats" onclick="footerNav('stats',this)"><span class="icon">🏆</span>Classement</button>
 </footer>
+
+<!-- Profile Drawer -->
+<div class="profile-overlay" id="profileOverlay" onclick="closeProfileDrawer()"></div>
+<div class="profile-drawer" id="profileDrawer">
+  <div class="profile-drawer-header">
+    <div class="profile-drawer-avatar" id="drawerAvatarLetter">?</div>
+    <div>
+      <div class="profile-drawer-name" id="drawerName">—</div>
+      <div class="profile-drawer-user" id="drawerUser">@—</div>
+    </div>
+    <button class="profile-drawer-close" onclick="closeProfileDrawer()">✕</button>
+  </div>
+  <div class="profile-drawer-body" id="drawerBody">
+    <div class="profile-empty">Chargement...</div>
+  </div>
+  <div class="profile-drawer-footer">
+    <button class="btn-logout-full" onclick="authLogout();closeProfileDrawer()">Se déconnecter</button>
+  </div>
+</div>
 
 <script>
 let ws = null, scoreR = 0, scoreB = 0;
@@ -426,13 +831,6 @@ function footerNav(sec, btn) {
     if (['live','jouer','stats'][i] === sec) b.classList.add('active');
   });
   showSection(sec);
-}
-
-function showSection(id) {
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.getElementById('sec-' + id).classList.add('active');
-  if (id === 'live' && !ws) connect();
-  if (id !== 'live') disconnect();
 }
 
 function setStatus(text, type='') {
@@ -469,26 +867,18 @@ function drawBall(nx, ny) {
   ctx.strokeStyle='#222'; ctx.lineWidth=1.5; ctx.stroke();
   ctx.shadowBlur=0;
 }
-function drawHeatmap(heatmap) {
-  document.getElementById('statsEmpty').style.display='none';
-  document.getElementById('heatmapCard').style.display='block';
-  const hc=document.getElementById('heatmapCanvas'), hctx=hc.getContext('2d');
-  const rows=heatmap.length, cols=heatmap[0].length;
-  hctx.fillStyle='#2d8a47'; hctx.fillRect(0,0,hc.width,hc.height);
-  for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
-    const v=heatmap[y][x];
-    if(v>0){hctx.fillStyle=`rgba(229,9,20,${Math.min(v/10,1)*0.8})`;hctx.fillRect(x*hc.width/cols,y*hc.height/rows,hc.width/cols,hc.height/rows);}
-  }
-}
+function drawHeatmap(heatmap) { /* heatmap moved to live view – noop */ }
 drawField();
 
+// ── Live WebSocket (spectateur) ──
 function connect() {
   if (ws) return;
-  ws = new WebSocket(`${getWsBase()}/`);
+  ws = new WebSocket(`${getWsBase()}/spectator`);
   ws.onopen  = () => setStatus('Connecté ✓','ok');
   ws.onclose = () => { ws=null; setStatus('Déconnecté'); };
   ws.onmessage = (e) => {
     const d = JSON.parse(e.data);
+    if(d.type==='table_status') { renderTableStatus(d); return; }
     if(d.type==='camera_ready') setStatus('📱 Caméra prête');
     if(d.type==='calibration_ok') { setStatus('🟢 Match en cours','ok'); scoreR=scoreB=0; document.getElementById('scoreRed').textContent=0; document.getElementById('scoreBlue').textContent=0; updateDom(); }
     if(d.type==='calibration_failed') setStatus('❌ Calibration échouée','err');
@@ -501,7 +891,7 @@ function connect() {
       if(d.score){scoreR=d.score.red;scoreB=d.score.blue;document.getElementById('scoreRed').textContent=scoreR;document.getElementById('scoreBlue').textContent=scoreB;updateDom();}
     }
     if(d.type==='goal'&&d.score){scoreR=d.score.red;scoreB=d.score.blue;document.getElementById('scoreRed').textContent=scoreR;document.getElementById('scoreBlue').textContent=scoreB;updateDom();}
-    if(d.type==='match_end'){setStatus('🏁 Match terminé');drawHeatmap(d.stats.heatmap);}
+    if(d.type==='match_end'){setStatus('🏁 Match terminé');}
     if(d.type==='replay'){
       const ov=document.getElementById('replayOverlay'),img=document.getElementById('replayImg');
       ov.style.display='block'; let i=0; const off=new Image();
@@ -511,6 +901,427 @@ function connect() {
   };
 }
 function disconnect() { ws?.close(); ws=null; }
+
+async function loadLeaderboard() {
+  const body = document.getElementById('leaderboardBody');
+  body.innerHTML = '<div style="text-align:center;color:var(--muted);padding:24px;font-weight:600;">Chargement...</div>';
+  try {
+    const res = await fetch('/api/leaderboard');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    body.innerHTML = '';
+    rows.forEach((r, i) => {
+      const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+      const rankEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+      const wr   = r.winrate_pct != null ? r.winrate_pct + '%' : '—';
+      const prec = r.avg_precision_pct != null ? r.avg_precision_pct + '%' : '—';
+      body.insertAdjacentHTML('beforeend', `
+        <div class="leaderboard-row">
+          <span class="lb-rank ${rankClass}">${rankEmoji}</span>
+          <div class="lb-name">
+            <div class="lb-display">${r.display_name}</div>
+            <div class="lb-username">@${r.username} · ${r.matches_played} match${r.matches_played !== 1 ? 's' : ''}</div>
+          </div>
+          <div class="lb-stats"><span class="lb-stat-line">Win ${wr} · Précision ${prec}</span></div>
+          <span class="lb-elo">${r.elo}</span>
+        </div>`);
+    });
+    if (rows.length === 0)
+      body.innerHTML = '<div style="text-align:center;color:var(--muted);padding:24px;font-weight:600;">Aucun joueur enregistré</div>';
+  } catch(e) {
+    console.warn('Leaderboard error', e);
+    body.innerHTML = '<div style="text-align:center;color:var(--muted);padding:24px;font-weight:600;">Impossible de charger le classement</div>';
+  }
+}
+
+// ══════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════
+let authTab    = 'login';
+let currentUser = null;
+
+function authInit() {
+  const saved = localStorage.getItem('ka_user');
+  if (saved) { try { currentUser = JSON.parse(saved); } catch(e) { currentUser = null; } }
+  authRenderUserBar();
+}
+
+function authRenderUserBar() {
+  const bar = document.getElementById('userBar');
+  const avatar = document.getElementById('headerAvatar');
+  if (currentUser) {
+    document.getElementById('userBarName').textContent = currentUser.display_name + ' (@' + currentUser.username + ')';
+    document.getElementById('userBarElo').textContent  = 'ELO ' + currentUser.elo;
+    bar.style.display = 'flex';
+    // Header avatar
+    const letter = (currentUser.display_name || currentUser.username || '?')[0].toUpperCase();
+    document.getElementById('headerAvatarLetter').textContent = letter;
+    avatar.style.display = 'flex';
+  } else {
+    bar.style.display = 'none';
+    avatar.style.display = 'none';
+  }
+}
+
+function authSwitchTab(tab) {
+  authTab = tab;
+  document.getElementById('tabLogin').classList.toggle('active',    tab === 'login');
+  document.getElementById('tabRegister').classList.toggle('active', tab === 'register');
+  document.getElementById('fieldDisplayName').style.display = tab === 'register' ? 'flex' : 'none';
+  document.getElementById('authSubmit').textContent = tab === 'login' ? 'Se connecter' : "S'inscrire";
+  document.getElementById('authPassword').autocomplete = tab === 'login' ? 'current-password' : 'new-password';
+  authClearError();
+}
+function authShowError(msg) { const el=document.getElementById('authError'); el.textContent=msg; el.classList.add('show'); }
+function authClearError()   { document.getElementById('authError').classList.remove('show'); }
+
+async function authSubmit() {
+  authClearError();
+  const username     = document.getElementById('authUsername').value.trim().toLowerCase();
+  const password     = document.getElementById('authPassword').value;
+  const display_name = document.getElementById('authDisplayName').value.trim();
+  if (!username || !password) { authShowError('Remplis tous les champs.'); return; }
+  if (authTab === 'register' && !display_name) { authShowError('Choisis un nom affiché.'); return; }
+  if (authTab === 'register' && password.length < 6) { authShowError('Mot de passe trop court (6 min).'); return; }
+  const btn = document.getElementById('authSubmit');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const url  = authTab === 'login' ? '/api/auth/login' : '/api/auth/register';
+    const body = authTab === 'login' ? { username, password } : { username, display_name, password };
+    const res  = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) { authShowError(data.error || 'Erreur inconnue'); return; }
+    currentUser = data;
+    localStorage.setItem('ka_user', JSON.stringify(currentUser));
+    document.getElementById('authOverlay').classList.add('hidden');
+    authRenderUserBar();
+  } catch(e) { authShowError('Erreur réseau. Réessaie.');
+  } finally { btn.disabled=false; btn.textContent = authTab==='login' ? 'Se connecter' : "S'inscrire"; }
+}
+
+function authLogout() {
+  currentUser = null;
+  localStorage.removeItem('ka_user');
+  authRenderUserBar();
+  // Ferme aussi le lobby WS si ouvert
+  lobbyClose();
+  hideModeChoose();
+  document.getElementById('mmPanel').style.display   = 'none';
+  document.getElementById('rolePanel').style.display = 'none';
+}
+
+function authGuard() {
+  if (!currentUser) {
+    document.getElementById('authOverlay').classList.remove('hidden');
+    document.getElementById('authUsername').value    = '';
+    document.getElementById('authPassword').value    = '';
+    document.getElementById('authDisplayName').value = '';
+    authClearError(); authSwitchTab('login');
+    return false;
+  }
+  return true;
+}
+
+// ══════════════════════════════════════════════
+// TABLE STATUS (reçu par tous via WS spectateur + lobby)
+// ══════════════════════════════════════════════
+let lastTableState = null;
+
+function renderTableStatus(d) {
+  console.log('[renderTableStatus] appelé avec :', d);
+  lastTableState = d.state;
+  const pill     = document.getElementById('tableStatusPill');
+  const subtitle = document.getElementById('tableSubtitle');
+  const card     = document.getElementById('tableCard');
+  const scoreRow = document.getElementById('tableScoreRow');
+
+  const labels = {
+    idle:        ['Libre',            '🟢 Libre',        'Clique pour jouer'],
+    matchmaking: ['En attente',       '🟡 Salle ouverte','En cours de matchmaking'],
+    calibrating: ['Calibration…',     '🔵 Calibration',  'Calibration du terrain en cours'],
+    playing:     ['Match en cours',   '🔴 Match en cours','Match en cours'],
+  };
+  const [, pillLabel, subLabel] = labels[d.state] || ['—','—','—'];
+  pill.textContent = pillLabel;
+  pill.className   = 'table-status-pill ' + d.state;
+  subtitle.textContent = subLabel;
+  card.classList.toggle('occupied', d.state !== 'idle');
+
+  scoreRow.style.display = d.state === 'playing' ? 'flex' : 'none';
+
+  // Met à jour le panel MM si on est dedans
+  if (d.room && document.getElementById('mmPanel').style.display !== 'none') {
+    renderMmPanel(d);
+  }
+}
+
+
+// ══════════════════════════════════════════════
+// MATCHMAKING
+// ══════════════════════════════════════════════
+let lobbyWs   = null;
+let mmMode    = '1v1';
+let mmReady_  = false;
+
+function startMatchmaking() {
+  if (!authGuard()) return;
+  document.getElementById('btnMatchmaking').disabled = true;
+  document.getElementById('btnMatchmaking').textContent = 'Recherche...';
+  lobbyConnect(() => {
+    lobbyWs.send(JSON.stringify({
+      type:         'mm_join',
+      username:     currentUser.username,
+      display_name: currentUser.display_name,
+      elo:          currentUser.elo,
+      mode:         mmMode,
+    }));
+  });
+}
+
+function mcSelect(mode) {
+  mmMode = mode;
+  document.getElementById('mcBtn1v1').classList.toggle('active', mode === '1v1');
+  document.getElementById('mcBtn2v2').classList.toggle('active', mode === '2v2');
+}
+
+function lobbyConnect(onOpenCb) {
+  if (lobbyWs && lobbyWs.readyState === WebSocket.OPEN) { onOpenCb(); return; }
+  lobbyWs = new WebSocket(`${getWsBase()}/lobby`);
+  lobbyWs.onopen = () => { onOpenCb(); };
+  lobbyWs.onclose = () => { lobbyWs = null; };
+  lobbyWs.onmessage = (e) => {
+    let d;
+    try {
+      d = JSON.parse(e.data);
+    } catch (err) {
+      console.warn('[lobbyWs.onmessage] JSON parse error', err, e.data);
+      return;
+    }
+    console.log('[lobbyWs.onmessage] message reçu :', d);
+    if (d.type === 'table_status') {
+      renderTableStatus(d);
+      renderMmPanel(d);
+      // Réactive le bouton matchmaking si la table redevient disponible
+      if (d.state === 'idle' || d.state === 'matchmaking') {
+        const btn = document.getElementById('btnMatchmaking');
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Chercher une partie';
+        }
+      }
+    }
+    if (d.type === 'mm_error') {
+      alert(d.error);
+      hideModeChoose();
+    }
+    if (d.type === 'mm_start') {
+      mmReady_ = false;
+      document.getElementById('mmPanel').style.display   = 'none';
+      document.getElementById('rolePanel').style.display = 'block';
+      const isCamera = d.role === 'camera';
+      document.getElementById('rolePanelIcon').textContent  = isCamera ? '📷' : '🎛';
+      document.getElementById('rolePanelTitle').textContent = isCamera ? 'Tu filmes' : 'Tu contrôles';
+      document.getElementById('rolePanelSub').textContent   = isCamera
+        ? 'Ouvre la caméra pour démarrer la calibration'
+        : 'Ouvre le contrôleur pour gérer le match';
+      const btn = document.getElementById('rolePanelBtn');
+      btn.href        = isCamera ? '/camera.html' : '/controller.html';
+      btn.textContent = isCamera ? 'Ouvrir la caméra' : 'Ouvrir le contrôleur';
+    }
+    if (d.type === 'elo_update' && d.new_elos && currentUser) {
+      const newElo = d.new_elos[currentUser.username];
+      if (newElo !== undefined && newElo !== currentUser.elo) {
+        currentUser.elo = newElo;
+        localStorage.setItem('ka_user', JSON.stringify(currentUser));
+        authRenderUserBar();
+      }
+    }
+  };
+}
+
+function lobbyClose() {
+  lobbyWs?.close();
+  lobbyWs = null;
+}
+
+function renderMmPanel(d) {
+  if (!d.room) {
+    document.getElementById('mmPanel').style.display = 'none';
+    return;
+  }
+  // Vérifie si je suis dans la room
+  const imIn = currentUser && d.room.players.some(p => p.username === currentUser.username);
+  if (!imIn) return;
+
+  document.getElementById('mmPanel').style.display = 'block';
+  const needed  = d.room.needed;
+  const players = d.room.players;
+  const title   = d.room.mode === '1v1' ? 'Salle 1v1' : 'Salle 2v2';
+  document.getElementById('mmTitle').textContent = `${title} — ${players.length}/${needed}`;
+
+  // Liste joueurs + slots vides
+  const colors = ['#e50914','#1565c0','#2e7d32','#f57f17'];
+  let html = '';
+  players.forEach((p, i) => {
+    const chip = p.ready
+      ? '<span class="mm-ready-chip">✓ Prêt</span>'
+      : '<span class="mm-waiting-chip">En attente</span>';
+    html += `<div class="mm-player-row">
+      <div class="mm-avatar" style="background:${colors[i%4]}">${p.display_name[0].toUpperCase()}</div>
+      <span class="mm-player-name">${p.display_name}</span>
+      <span class="mm-player-elo">ELO ${p.elo}</span>
+      ${chip}
+    </div>`;
+  });
+  for (let i = players.length; i < needed; i++) {
+    html += `<div class="mm-slot">En attente d'un joueur...</div>`;
+  }
+  document.getElementById('mmPlayers').innerHTML = html;
+
+  // Hint + bouton prêt
+  const myInfo = players.find(p => p.username === currentUser?.username);
+  const allIn  = players.length === needed;
+  const btnReady = document.getElementById('btnReady');
+
+  if (!allIn) {
+    document.getElementById('mmHint').textContent = `Attends que ${needed - players.length} joueur(s) rejoignent…`;
+    btnReady.style.display = 'none';
+  } else if (myInfo && !myInfo.ready) {
+    document.getElementById('mmHint').textContent = 'Tout le monde est là — confirme !';
+    btnReady.style.display = 'block';
+    btnReady.disabled = false;
+    btnReady.textContent = '✓ Je suis prêt';
+  } else {
+    const notReady = players.filter(p => !p.ready).length;
+    document.getElementById('mmHint').textContent = `En attente de ${notReady} joueur(s)…`;
+    btnReady.style.display = 'none';
+  }
+}
+
+function mmReady() {
+  if (!lobbyWs || lobbyWs.readyState !== WebSocket.OPEN) return;
+  lobbyWs.send(JSON.stringify({ type: 'mm_ready' }));
+  document.getElementById('btnReady').disabled = true;
+  document.getElementById('btnReady').textContent = '⏳ En attente…';
+}
+
+function mmLeave() {
+  lobbyWs?.send(JSON.stringify({ type: 'mm_leave' }));
+  document.getElementById('mmPanel').style.display   = 'none';
+  document.getElementById('rolePanel').style.display = 'none';
+  lobbyClose();
+}
+
+// ══════════════════════════════════════════════
+// SECTION ROUTING
+// ══════════════════════════════════════════════
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('sec-' + id).classList.add('active');
+  if (id === 'live' && !ws) connect();
+  if (id !== 'live') disconnect();
+  if (id === 'stats') loadLeaderboard();
+  if (id === 'jouer') authRenderUserBar();
+}
+
+// ══════════════════════════════════════════════
+// PROFILE DRAWER
+// ══════════════════════════════════════════════
+function toggleProfileDrawer() {
+  const drawer  = document.getElementById('profileDrawer');
+  const overlay = document.getElementById('profileOverlay');
+  const isOpen  = drawer.classList.contains('open');
+  if (isOpen) { closeProfileDrawer(); return; }
+  openProfileDrawer();
+}
+
+function openProfileDrawer() {
+  if (!currentUser) return;
+  const drawer  = document.getElementById('profileDrawer');
+  const overlay = document.getElementById('profileOverlay');
+  const letter  = (currentUser.display_name || currentUser.username || '?')[0].toUpperCase();
+  document.getElementById('drawerAvatarLetter').textContent = letter;
+  document.getElementById('drawerName').textContent = currentUser.display_name;
+  document.getElementById('drawerUser').textContent = '@' + currentUser.username;
+  overlay.classList.add('open');
+  drawer.classList.add('open');
+  loadProfileStats();
+}
+
+function closeProfileDrawer() {
+  document.getElementById('profileDrawer').classList.remove('open');
+  document.getElementById('profileOverlay').classList.remove('open');
+}
+
+async function loadProfileStats() {
+  if (!currentUser) return;
+  const body = document.getElementById('drawerBody');
+  body.innerHTML = '<div class="profile-empty">Chargement...</div>';
+  try {
+    const res = await fetch(`/api/players/${currentUser.username}/stats`);
+    if (!res.ok) throw new Error('not found');
+    const d = await res.json();
+
+    const wr   = d.winrate_pct != null ? d.winrate_pct + '%' : '—';
+    const prec = d.avg_precision_pct != null ? d.avg_precision_pct + '%' : '—';
+    const poss = d.avg_possession != null ? d.avg_possession + '%' : '—';
+    const wins = d.wins ?? 0;
+    const played = d.matches_played ?? 0;
+    const losses = played - wins - (d.draws ?? 0);
+
+    let histHtml = '';
+    if (d.recent_matches && d.recent_matches.length > 0) {
+      d.recent_matches.forEach(m => {
+        const won  = m.won;
+        const draw = m.draw;
+        const cls  = draw ? 'draw' : won ? 'win' : 'loss';
+        const lbl  = draw ? 'N'    : won ? 'V'   : 'D';
+        const delta = m.elo_delta ?? 0;
+        const eloCls = delta > 0 ? 'pos' : delta < 0 ? 'neg' : 'neu';
+        const eloStr = delta > 0 ? '+' + delta : delta === 0 ? '±0' : '' + delta;
+        const mode = m.mode || '1v1';
+        histHtml += `<div class="profile-match-row">
+          <div class="profile-match-result ${cls}">${lbl}</div>
+          <div>
+            <div class="profile-match-score">${m.score_my_team} – ${m.score_opp}</div>
+            <div class="profile-match-meta">${mode} · ${m.date ? new Date(m.date).toLocaleDateString('fr-FR') : '—'}</div>
+          </div>
+          <div class="profile-match-elo ${eloCls}">${eloStr}</div>
+        </div>`;
+      });
+    } else {
+      histHtml = '<div class="profile-empty">Aucun match joué</div>';
+    }
+
+    body.innerHTML = `
+      <div class="profile-elo-banner">
+        <div>
+          <div class="profile-elo-label">ELO</div>
+          <div class="profile-elo-val">${currentUser.elo}</div>
+          <div class="profile-elo-sub">${played} match${played !== 1 ? 's' : ''} joué${played !== 1 ? 's' : ''}</div>
+        </div>
+      </div>
+      <div class="profile-stats-grid">
+        <div class="profile-stat-card"><div class="profile-stat-val">${wins}</div><div class="profile-stat-lbl">Victoires</div></div>
+        <div class="profile-stat-card"><div class="profile-stat-val red">${wr}</div><div class="profile-stat-lbl">Win rate</div></div>
+        <div class="profile-stat-card"><div class="profile-stat-val">${prec}</div><div class="profile-stat-lbl">Précision</div></div>
+        <div class="profile-stat-card"><div class="profile-stat-val">${poss}</div><div class="profile-stat-lbl">Possession</div></div>
+        <div class="profile-stat-card"><div class="profile-stat-val">${d.avg_max_speed != null ? d.avg_max_speed : '—'}</div><div class="profile-stat-lbl">Vitesse max</div></div>
+        <div class="profile-stat-card"><div class="profile-stat-val">${d.total_goals ?? '—'}</div><div class="profile-stat-lbl">Buts</div></div>
+      </div>
+      <div>
+        <div class="profile-section-title">Derniers matchs</div>
+        <div class="profile-history">${histHtml}</div>
+      </div>
+    `;
+  } catch(e) {
+    body.innerHTML = `<div class="profile-empty">Impossible de charger les stats.<br>Vérifie ta connexion.</div>`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  authInit();
+});
 </script>
 </body>
 </html>

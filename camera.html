@@ -113,9 +113,9 @@ video { display:none; }
 </style>
 <script>
 function getWsBase() {
-  const proto=window.location.protocol==='https:'?'wss':'ws';
-  const ws_port=parseInt(window.location.port||(proto==='wss'?443:80))+1;
-  return `${proto}://${window.location.hostname}:${ws_port}`;
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const port  = window.location.port ? `:${window.location.port}` : '';
+  return `${proto}://${window.location.hostname}${port}/ws`;
 }
 </script>
 </head>
@@ -209,8 +209,12 @@ window.addEventListener('beforeunload',stop);
 async function start(){
   document.getElementById('btnStart').disabled=true;
   try{
-    video.src='/test.mp4';video.loop=false;video.muted=true;
-    video.addEventListener('ended',()=>{running=false;setStatus('Vidéo terminée');});
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    // video.src = 'test.mp4';
     await video.play();
     const wsUrl=`${getWsBase()}/camera`;
     function setupSocket(){
@@ -228,7 +232,10 @@ async function start(){
     setupSocket();running=true;
     document.getElementById('btnStart').style.display='none';
     document.getElementById('btnStop').style.display='block';
-  }catch(err){setStatus('Erreur : '+err.message,'err');document.getElementById('btnStart').disabled=false;}
+  }catch(err){
+    setStatus('Erreur : '+err.message,'err');
+    document.getElementById('btnStart').disabled=false;
+  }
 }
 function stop(){
   running=calibrated=false;
