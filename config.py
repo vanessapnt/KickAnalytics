@@ -12,5 +12,11 @@ MAX_SPECTATORS             = 20
 
 PORT     = int(os.environ.get('PORT', 8080))
 WS_PORT  = PORT + 1
-CANVAS_W = 450
-CANVAS_H = 800
+
+CANVAS_W      = 450
+FIELD_H_PX    = 800
+GOAL_DEPTH_PX = 40
+CANVAS_H      = FIELD_H_PX + 2 * GOAL_DEPTH_PX  # 880
+
+FIELD_Y0 = GOAL_DEPTH_PX        # 40
+FIELD_Y1 = FIELD_Y0 + FIELD_H_PX  # 840

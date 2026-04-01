@@ -169,10 +169,12 @@ function getWsBase() {
 <video id="video" autoplay playsinline muted></video>
 
 <script>
-let ws=null,running=false,stream=null,calibrated=false;
+let ws=null,running=false,stream=null,calibrated=false,validated=false;
 const video=document.getElementById('video');
 const preview=document.getElementById('preview');
 const pCtx=preview.getContext('2d');
+
+function getCurrentUser(){try{return JSON.parse(localStorage.getItem('ka_user'))||{};}catch(e){return {};}}
 
 function setStatus(text,type=''){
   document.getElementById('statusText').textContent=text;
@@ -201,7 +203,13 @@ function calibrate(){setTerrain('Détection...');ws?.send(JSON.stringify({type:'
 let trackingLoop=null;
 function startTracking(){
   if(trackingLoop!==null)return;
-  function loop(){if(!running||!calibrated){trackingLoop=null;return;}ws?.send(JSON.stringify({type:'frame',image:captureSmall(),ts:Date.now()}));trackingLoop=setTimeout(()=>requestAnimationFrame(loop),100);}
+  function loop(){
+    if(!running||!calibrated){trackingLoop=null;return;}
+    if(ws&&ws.readyState===WebSocket.OPEN){
+      ws.send(JSON.stringify({type:'frame',image:captureSmall(),ts:Date.now(),frame_width:video.videoWidth,frame_height:video.videoHeight}));
+    }
+    trackingLoop=setTimeout(()=>requestAnimationFrame(loop),50);
+  }
   requestAnimationFrame(loop);
 }
 window.addEventListener('beforeunload',stop);
@@ -209,21 +217,35 @@ window.addEventListener('beforeunload',stop);
 async function start(){
   document.getElementById('btnStart').disabled=true;
   try{
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false
-    });
-    video.srcObject = stream;
-    // video.src = 'test.mp4';
+    // stream=await navigator.mediaDevices.getUserMedia({
+    //   video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},
+    //   audio:false
+    // });
+    // video.srcObject=stream;
+    video.src='/test.mp4'; video.loop=false; video.muted=true;
+    video.addEventListener('ended', () => { running=false; setStatus('Vidéo terminée'); });
     await video.play();
-    const wsUrl=`${getWsBase()}/camera`;
+
+    const user=getCurrentUser();
+    const params=new URLSearchParams({
+      username:user.username||'inconnu',
+      display_name:user.display_name||'Inconnu',
+    });
+    const wsUrl=`${getWsBase()}/camera?${params}`;
+
     function setupSocket(){
       ws=new WebSocket(wsUrl);
-      ws.onopen=()=>setStatus('Connecté ✓','ok');
+      ws.onopen=()=>setStatus('En attente de validation...','ok');
       ws.onclose=()=>{setStatus('Reconnexion...');if(running)setTimeout(setupSocket,2000);};
       ws.onmessage=(e)=>{
         const d=JSON.parse(e.data);
-        if(d.type==='start_calibration')calibrate();
+        if(d.type==='camera_validated'){
+          validated=true;
+          ws.send(JSON.stringify({type:'camera_validated_ack'}));
+          setStatus('Validée ✓ — Attends la calibration','ok');
+          setTerrain('En attente calibration...');
+        }
+        else if(d.type==='start_calibration')calibrate();
         else if(d.type==='calibration_preview'){showPreview(d.corners);ws?.send(JSON.stringify({type:'calibration_preview',image:capturePreview(),corners:d.corners,frame_width:video.videoWidth,frame_height:video.videoHeight}));setTerrain('Vérifie le contour...');}
         else if(d.type==='calibration_failed'){setTerrain('Non détecté ❌');showPreview(null);}
         else if(d.type==='calibration_ok'){calibrated=true;showPreview(null);setTerrain('Calibré ✓',true);startTracking();}
@@ -237,8 +259,9 @@ async function start(){
     document.getElementById('btnStart').disabled=false;
   }
 }
+
 function stop(){
-  running=calibrated=false;
+  running=calibrated=validated=false;
   if(trackingLoop!==null){clearTimeout(trackingLoop);trackingLoop=null;}
   showPreview(null);stream?.getTracks().forEach(t=>t.stop());stream=null;
   ws?.close();ws=null;

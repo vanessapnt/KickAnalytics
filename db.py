@@ -94,7 +94,7 @@ async def save_match(players_info: list, score: dict, elo_deltas: dict):
             # Insert stats
             table_stats = "match_player_stats_2v2" if is_2v2 else "match_player_stats_1v1"
             for p in players_info:
-                await connection.execute( # no return value win_proba, just execute the command
+                await connection.execute( # no return value, just execute the command
                     f"""
                     INSERT INTO {table_stats}
                         (match_id, player_id, role,

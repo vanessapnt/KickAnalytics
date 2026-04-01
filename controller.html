@@ -163,7 +163,7 @@ header {
 .preview-card img { display:block; width:100%; }
 </style>
 <script>
-function getWsBase() {
+function getWsBase() { 
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const port  = window.location.port ? `:${window.location.port}` : '';
   return `${proto}://${window.location.hostname}${port}/ws`;
@@ -236,6 +236,12 @@ function getWsBase() {
           <button class="btn-outline" id="btnReady"     onclick="confirmCalibration()" style="display:none">✅ Prêt !</button>
           <button class="btn-outline" id="btnRetry"     onclick="triggerCalibration()" style="display:none">🔄 Relancer</button>
         </div>
+      </div>
+
+      <!-- Rejouer -->
+      <div id="replaySection" style="display:none">
+        <div class="section-title">Nouvelle partie</div>
+        <button class="btn-red" id="btnReplay" onclick="replayMatch()">🔁 Rejouer</button>
       </div>
 
     </div>
@@ -317,9 +323,13 @@ function connectWs() {
       renderTeams(d.match);
       document.getElementById('metaMode').textContent = d.match.mode;
     }
-    if (d.type === 'camera_ready') {
+    if (d.type === 'camera_ready' || d.type === 'camera_selected' || d.type === 'camera_reselected') {
       document.getElementById('btnCalibrate').disabled = false;
       setStatus('📱 Caméra prête');
+    }
+    if (d.type === 'camera_resumed') {
+      document.getElementById('btnCalibrate').disabled = false;
+      setStatus('▶ Match repris', 'ok');
     }
     if (d.type === 'calibration_preview') {
       document.getElementById('previewImg').src             = d.image;
@@ -354,9 +364,19 @@ function connectWs() {
       document.getElementById('btnCalibrate').disabled = true;
       document.getElementById('previewCard').style.display  = 'none';
       document.getElementById('previewEmpty').style.display = 'none';
+      document.getElementById('replaySection').style.display = 'block';
     }
     if (d.type === 'elo_update') renderEloRow(d);
   };
+}
+
+function replayMatch() {
+  document.getElementById('replaySection').style.display = 'none';
+  document.getElementById('eloRow').style.display = 'none';
+  document.getElementById('scoreRed').textContent  = '0';
+  document.getElementById('scoreBlue').textContent = '0';
+  document.getElementById('btnCalibrate').disabled = false;
+  triggerCalibration();
 }
 
 // ── Calibration ──

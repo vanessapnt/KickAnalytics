@@ -61,7 +61,10 @@ configure-gcloud:
 	gcloud run services update $(IMAGE_NAME) \
 		--region europe-west1 \
 		--cpu 2 \
-		--max-instances 1
+		--memory 2Gi \
+		--max-instances 1 \
+		--timeout 3600 \
+		--no-cpu-throttling
 
 deploy-gcloud:
 	gcloud builds submit --tag gcr.io/$${PROJECT_ID}/$(IMAGE_NAME)
@@ -73,9 +76,15 @@ deploy-gcloud:
 		--port 8080 \
 		--set-env-vars DATABASE_URL=$${DATABASE_URL}
 
+VIDEO  ?= test.mp4
+FRAMES ?= 100
+
+test-pipeline:
+	docker run --rm -v $(shell pwd):/app -w /app $(IMAGE_NAME) python3 test_pipeline.py $(VIDEO) $(FRAMES)
+
 clean:
 	docker ps -q --filter ancestor=$(IMAGE_NAME) | xargs -r docker stop || true
 	docker ps -aq --filter ancestor=$(IMAGE_NAME) | xargs -r docker rm || true
 	docker rmi $(IMAGE_NAME) || true
 
-.PHONY: info test install-docker install-ngrok build run-local tunnel gcloud-auth deploy-gcloud clean configure-gcloud
+.PHONY: info test install-docker install-ngrok build run-local tunnel gcloud-auth configure-gcloud deploy-gcloud test-pipeline clean
