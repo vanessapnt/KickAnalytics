@@ -87,6 +87,12 @@ deploy-gcloud:
 		--region europe-west1 \
 		--allow-unauthenticated \
 		--port 8080 \
+		--cpu 2 \
+		--memory 2Gi \
+		--min-instances 1 \
+		--max-instances 1 \
+		--timeout 3600 \
+		--no-cpu-throttling \
 		--set-env-vars DATABASE_URL=$${DATABASE_URL}
 
 VIDEO  ?= test.mp4
