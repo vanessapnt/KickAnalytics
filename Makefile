@@ -73,8 +73,9 @@ gcloud-auth: check-gcloud
 configure-gcloud:
 	gcloud run services update $(IMAGE_NAME) \
 		--region europe-west1 \
-		--cpu 2 \
-		--memory 2Gi \
+		--cpu 4 \
+		--memory 4Gi \
+		--min-instances 1 \
 		--max-instances 1 \
 		--timeout 3600 \
 		--no-cpu-throttling
@@ -87,8 +88,8 @@ deploy-gcloud:
 		--region europe-west1 \
 		--allow-unauthenticated \
 		--port 8080 \
-		--cpu 2 \
-		--memory 2Gi \
+		--cpu 4 \
+		--memory 4Gi \
 		--min-instances 1 \
 		--max-instances 1 \
 		--timeout 3600 \

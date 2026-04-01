@@ -33,7 +33,12 @@ async def ws_router(request):
     return await handle_spectator(request)
 
 async def main():
-    state.frame_queue = asyncio.Queue(maxsize=5)
+    import concurrent.futures
+    # 2 threads pour décodage/cv2, ONNX a son propre executor (2 threads internes) dans vision.py
+    general_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix='cv2')
+    asyncio.get_event_loop().set_default_executor(general_executor)
+
+    state.frame_queue = asyncio.Queue(maxsize=2)
     await init_db()
     asyncio.create_task(inference_worker())
 
