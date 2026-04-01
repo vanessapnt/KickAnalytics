@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Contrôleur — KickAnalytics</title>
+<title>Contrôleur KickAnalytics</title>
 <link rel="icon" href="/icon.png">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -163,9 +163,9 @@ header {
 .preview-card img { display:block; width:100%; }
 </style>
 <script>
-function getWsBase() { 
+function getWsBase() {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const port  = window.location.port ? `:${window.location.port}` : '';
+  const port = window.location.port ? `:${window.location.port}` : '';
   return `${proto}://${window.location.hostname}${port}/ws`;
 }
 </script>
@@ -174,12 +174,12 @@ function getWsBase() {
 
 <header>
   <div class="logo">KickAnalytics</div>
-  <a href="/" class="back-link">Retour</a> <!--navigation link-->
+  <a href="/" class="back-link">Retour</a>
 </header>
 
 <div class="page-content">
   <div class="ctrl-layout">
-    <div> <!--left column: scorecard + preview-->
+    <div>
       <div class="score-card">
         <div class="match-meta">
           <span>Contrôleur</span>
@@ -207,7 +207,6 @@ function getWsBase() {
           </div>
         </div>
         <div><span class="status-tag" id="statusTag">Déconnecté</span></div>
-        <!-- ELO deltas après match -->
         <div class="elo-row" id="eloRow" style="display:none"></div>
       </div>
 
@@ -220,25 +219,22 @@ function getWsBase() {
       </div>
     </div>
 
-    <div class="controls-col"> <!--right column : controls-->
+    <div class="controls-col">
 
-      <!-- Connexion -->
       <div>
         <div class="section-title">Connexion</div>
         <button class="btn-dark" id="btnConnect" onclick="connectWs()">🔌 Se connecter</button>
       </div>
 
-      <!-- Calibration -->
       <div>
         <div class="section-title">Calibration terrain</div>
         <div class="btn-row">
-          <button class="btn-red"     id="btnCalibrate" onclick="triggerCalibration()" disabled>🎯 Calibrer</button>
-          <button class="btn-outline" id="btnReady"     onclick="confirmCalibration()" style="display:none">✅ Prêt !</button>
-          <button class="btn-outline" id="btnRetry"     onclick="triggerCalibration()" style="display:none">🔄 Relancer</button>
+          <button class="btn-red" id="btnCalibrate" onclick="triggerCalibration()" disabled>🎯 Calibrer</button>
+          <button class="btn-outline" id="btnReady" onclick="confirmCalibration()" style="display:none">✅ Prêt !</button>
+          <button class="btn-outline" id="btnRetry" onclick="triggerCalibration()" style="display:none">🔄 Relancer</button>
         </div>
       </div>
 
-      <!-- Rejouer -->
       <div id="replaySection" style="display:none">
         <div class="section-title">Nouvelle partie</div>
         <button class="btn-red" id="btnReplay" onclick="replayMatch()">🔁 Rejouer</button>
@@ -249,19 +245,16 @@ function getWsBase() {
 </div>
 
 <script>
-let ws   = null;
+let ws = null;
 
-// roles[team][playerIndex 1|2] = 'attacker' | 'defender'
 const roles = { red: { 1:'attacker', 2:'defender' }, blue: { 1:'attacker', 2:'defender' } };
 
-// ── Status ──
 function setStatus(t, type='') {
   const el = document.getElementById('statusTag');
   el.textContent = t;
   el.className = 'status-tag' + (type ? ' ' + type : '');
 }
 
-// ── Rôle ──
 function setRole(team, idx, role, btn) {
   roles[team][idx] = role;
   const toggleEl = document.getElementById(`role${team[0].toUpperCase()+team.slice(1)}${idx}`);
@@ -269,8 +262,6 @@ function setRole(team, idx, role, btn) {
   btn.classList.add('active');
 }
 
-
-// ── Affichage équipes dynamiques ──
 function renderTeams(match) {
   const red = match.red || [];
   const blue = match.blue || [];
@@ -280,33 +271,30 @@ function renderTeams(match) {
   document.getElementById('teamBlueNames').innerHTML = document.getElementById('teamBlueList').innerHTML;
 }
 
-// ── ELO post-match ──
 function renderEloRow(d) {
   const row = document.getElementById('eloRow');
   row.style.display = 'flex';
   const make = (label, delta) => {
     const sign = delta >= 0 ? '+' : '';
-    const cls  = delta >= 0 ? 'pos' : 'neg';
+    const cls = delta >= 0 ? 'pos' : 'neg';
     return `<div class="elo-item"><span class="elo-label">${label}</span><span class="elo-delta ${cls}">${sign}${delta}</span></div>`;
   };
   if (d.mode === '1v1') {
     row.innerHTML = make('ELO Rouge', d.red[0].delta) + make('ELO Bleu', d.blue[0].delta);
   } else {
     row.innerHTML =
-      make(d.red[0].username,  d.red[0].delta)  +
-      make(d.red[1].username,  d.red[1].delta)  +
+      make(d.red[0].username, d.red[0].delta) +
+      make(d.red[1].username, d.red[1].delta) +
       make(d.blue[0].username, d.blue[0].delta) +
       make(d.blue[1].username, d.blue[1].delta);
   }
 }
 
-// ── WebSocket ──
-
 function connectWs() {
   document.getElementById('btnConnect').disabled = true;
   ws = new WebSocket(`${getWsBase()}/controller`);
 
-  ws.onopen = () => { setStatus('Connecté ✓', 'ok'); };
+  ws.onopen = () => { setStatus('Connecté', 'ok'); };
 
   ws.onclose = () => {
     document.getElementById('btnCalibrate').disabled = true;
@@ -332,37 +320,37 @@ function connectWs() {
       setStatus('▶ Match repris', 'ok');
     }
     if (d.type === 'calibration_preview') {
-      document.getElementById('previewImg').src             = d.image;
+      document.getElementById('previewImg').src = d.image;
       document.getElementById('previewEmpty').style.display = 'none';
-      document.getElementById('previewCard').style.display  = 'block';
-      document.getElementById('btnReady').style.display     =
-      document.getElementById('btnRetry').style.display     = 'block';
+      document.getElementById('previewCard').style.display = 'block';
+      document.getElementById('btnReady').style.display =
+      document.getElementById('btnRetry').style.display = 'block';
       setStatus('Vérifie le contour');
     }
     if (d.type === 'calibration_ok') {
-      document.getElementById('previewCard').style.display  = 'none';
+      document.getElementById('previewCard').style.display = 'none';
       document.getElementById('previewEmpty').style.display = 'none';
-      document.getElementById('btnReady').style.display     =
-      document.getElementById('btnRetry').style.display     = 'none';
+      document.getElementById('btnReady').style.display =
+      document.getElementById('btnRetry').style.display = 'none';
       setStatus('🟢 Match en cours', 'ok');
     }
     if (d.type === 'calibration_failed') {
-      document.getElementById('previewCard').style.display  = 'none';
+      document.getElementById('previewCard').style.display = 'none';
       document.getElementById('previewEmpty').style.display = 'flex';
-      document.getElementById('btnReady').style.display     =
-      document.getElementById('btnRetry').style.display     = 'none';
-      setStatus('❌ Échec — réessaie', 'err');
+      document.getElementById('btnReady').style.display =
+      document.getElementById('btnRetry').style.display = 'none';
+      setStatus('❌ Échec, réessaie', 'err');
     }
     if (d.type === 'goal' && d.score) {
-      document.getElementById('scoreRed').textContent  = d.score.red;
+      document.getElementById('scoreRed').textContent = d.score.red;
       document.getElementById('scoreBlue').textContent = d.score.blue;
     }
     if (d.type === 'match_end') {
-      document.getElementById('scoreRed').textContent  = d.score.red;
+      document.getElementById('scoreRed').textContent = d.score.red;
       document.getElementById('scoreBlue').textContent = d.score.blue;
       setStatus('🏁 Match terminé');
       document.getElementById('btnCalibrate').disabled = true;
-      document.getElementById('previewCard').style.display  = 'none';
+      document.getElementById('previewCard').style.display = 'none';
       document.getElementById('previewEmpty').style.display = 'none';
       document.getElementById('replaySection').style.display = 'block';
     }
@@ -373,29 +361,27 @@ function connectWs() {
 function replayMatch() {
   document.getElementById('replaySection').style.display = 'none';
   document.getElementById('eloRow').style.display = 'none';
-  document.getElementById('scoreRed').textContent  = '0';
+  document.getElementById('scoreRed').textContent = '0';
   document.getElementById('scoreBlue').textContent = '0';
   document.getElementById('btnCalibrate').disabled = false;
   triggerCalibration();
 }
 
-// ── Calibration ──
-
 function triggerCalibration() {
   ws?.send(JSON.stringify({ type: 'trigger_calibration' }));
-  document.getElementById('previewCard').style.display  = 'none';
+  document.getElementById('previewCard').style.display = 'none';
   document.getElementById('previewEmpty').style.display = 'flex';
-  document.getElementById('btnReady').style.display     =
-  document.getElementById('btnRetry').style.display     = 'none';
+  document.getElementById('btnReady').style.display =
+  document.getElementById('btnRetry').style.display = 'none';
   setStatus('🔍 Détection terrain...');
 }
 
 function confirmCalibration() {
   ws?.send(JSON.stringify({ type: 'confirm_calibration' }));
-  document.getElementById('previewCard').style.display  = 'none';
+  document.getElementById('previewCard').style.display = 'none';
   document.getElementById('previewEmpty').style.display = 'none';
-  document.getElementById('btnReady').style.display     =
-  document.getElementById('btnRetry').style.display     = 'none';
+  document.getElementById('btnReady').style.display =
+  document.getElementById('btnRetry').style.display = 'none';
   setStatus('🟢 Match en cours', 'ok');
 }
 </script>

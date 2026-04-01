@@ -157,7 +157,7 @@ def generate_html(results, corners, goal_top, goal_bottom):
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pipeline Debug — KickAnalytics</title>
+<title>Pipeline Debug KickAnalytics</title>
 <style>
 *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
 :root {{
@@ -257,7 +257,7 @@ input[type=range] {{ flex: 1; accent-color: var(--red); }}
 <body>
 
 <header>
-  <div class="logo">🔬 Pipeline Debug — KickAnalytics</div>
+  <div class="logo">🔬 Pipeline Debug KickAnalytics</div>
   <div class="score-badge">🔴 <span id="scoreRed">0</span> – <span id="scoreBlue">0</span> 🔵</div>
 </header>
 
@@ -463,7 +463,7 @@ function render(idx) {{
 
   document.getElementById('frameImg').src = 'data:image/jpeg;base64,' + r.frame_b64;
   document.getElementById('frameLabel').textContent = `#${{r.frame_idx}}`;
-  document.getElementById('panelVideoTitle').textContent = `Frame vidéo — ${{idx+1}} / ${{data.length}}  (vidéo frame ${{r.frame_idx}})`;
+  document.getElementById('panelVideoTitle').textContent = `Frame vidéo ${{idx+1}} / ${{data.length}} (vidéo frame ${{r.frame_idx}})`;
   document.getElementById('frameCounter').textContent = `${{idx+1}} / ${{data.length}}`;
   document.getElementById('scrubber').value = idx;
   document.getElementById('btnPrev').disabled = idx === 0;
@@ -503,7 +503,7 @@ function render(idx) {{
 function refreshGoalLog() {{
   const el = document.getElementById('goalLog');
   if (!goalLog.length) {{ el.innerHTML='<div style="font-size:11px;color:var(--muted)">Aucun but</div>'; return; }}
-  el.innerHTML = goalLog.map(g => `<div class="goal-entry ${{g.team}}">${{g.team === 'red' ? '🔴' : '🔵'}} But ${{g.team}} — frame ${{g.frame}}</div>`).join('');
+  el.innerHTML = goalLog.map(g => `<div class="goal-entry ${{g.team}}">${{g.team === 'red' ? '🔴' : '🔵'}} But ${{g.team}} (frame ${{g.frame}})</div>`).join('');
 }}
 
 function navigate(d) {{ goTo(Math.max(0, Math.min(data.length - 1, current + d))); }}

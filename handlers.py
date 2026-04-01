@@ -61,18 +61,18 @@ async def save_match_end(score: dict, stats: dict):
     p_roles = state.current_match.get("roles", {"red": [], "blue": []})
 
     if not red_users or not blue_users:
-        print("[DB] Joueurs non définis, match non sauvegardé"); return
+        print("[DB] Players not defined, match not saved"); return
 
     pool = get_pool()
     if pool is None:
-        print("[DB] Pool non initialisé, match non sauvegardé"); return
+        print("[DB] Pool not initialized, match not saved"); return
 
     async with pool.acquire() as conn:
         elos_red = [await conn.fetchval("SELECT elo FROM players WHERE username=$1", u) for u in red_users]
         elos_blue = [await conn.fetchval("SELECT elo FROM players WHERE username=$1", u) for u in blue_users]
 
     if any(e is None for e in elos_red + elos_blue):
-        print("[DB] Joueur introuvable, match non sauvegardé"); return
+        print("[DB] Player not found, match not saved"); return
 
     elo_deltas = compute_elo_deltas(elos_red, elos_blue, score["red"], score["blue"])
     is_2v2 = match_mode == "2v2"
@@ -296,7 +296,7 @@ async def handle_controller(request):
                     state.current_match["red"] = data.get("red", [])
                     state.current_match["blue"] = data.get("blue", [])
                     state.current_match["roles"] = data.get("roles", {"red": [], "blue": []})
-                    print(f"[MATCH] Mode={state.current_match['mode']} Rouge={state.current_match['red']} Bleu={state.current_match['blue']}")
+                    print(f"[MATCH] Mode={state.current_match['mode']} Red={state.current_match['red']} Blue={state.current_match['blue']}")
                 elif msg_type == "confirm_calibration":
                     ok = confirm_calibration()
                     if ok:

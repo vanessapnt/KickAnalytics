@@ -88,7 +88,7 @@ async def camera_joined(ws, username, display_name):
             "type": "camera_pool_full",
             "error": f"Pool is full (max {CAMERA_POOL_MAX} cameras)"
         }))
-        print(f"[CAM POOL] {display_name} rejected — pool is full")
+        print(f"[CAM POOL] {display_name} rejected, pool is full")
         return
 
     state.camera_pool[ws] = {"username": username, "display_name": display_name}
@@ -145,7 +145,7 @@ async def select_camera(controller_ws, camera_username):
             state.table_state = "calibrating"
             await target_ws.send_str(json.dumps({"type": "camera_validated"}))
             await broadcast(state.controllers, {"type": "camera_selected", "camera": info})
-            print(f"[CAM POOL] {camera_username} pre-validated — waiting for camera.html")
+            print(f"[CAM POOL] {camera_username} pre-validated, waiting for camera.html")
 
     await broadcast_table_status()
 

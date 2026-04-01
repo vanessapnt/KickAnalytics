@@ -277,7 +277,6 @@ canvas#terrain { display: block; width: 100%; height: auto; }
 }
 @media (max-width: 767px) { .section-header { padding: 14px 12px 4px; margin: 0; } }
 
-/* ── Auth Modal ── */
 .auth-overlay {
   position: fixed; inset: 0; z-index: 999;
   background: rgba(0,0,0,0.55);
@@ -383,7 +382,6 @@ footer button.active::before {
 }
 footer button .icon { font-size: 20px; }
 
-/* ── Table card ── */
 .table-card {
   background: var(--card); border-radius: var(--radius);
   border: 1.5px solid var(--border); padding: 18px;
@@ -415,7 +413,6 @@ footer button .icon { font-size: 20px; }
 .table-score-num { font-size:38px; font-weight:900; color:var(--text); }
 .table-score-sep { font-size:22px; color:var(--muted); }
 
-/* ── Matchmaking panel ── */
 .mm-panel {
   background:var(--card); border-radius:var(--radius);
   border:1.5px solid var(--border); margin-top:12px;
@@ -451,7 +448,6 @@ footer button .icon { font-size: 20px; }
 .mm-hint { padding:10px 16px; font-size:12px; color:var(--muted); font-weight:600; text-align:center; border-top:1px solid var(--border); }
 .mm-panel .btn-red { border-radius:0; }
 
-/* ── Mode choose + Role panel ── */
 .mode-choose {
   background:var(--card); border-radius:var(--radius);
   border:1.5px solid var(--border); padding:18px; margin-top:12px;
@@ -486,7 +482,6 @@ footer button .icon { font-size: 20px; }
 }
 .header-avatar:hover { background: rgba(255,255,255,0.35); transform: scale(1.08); }
 
-/* ── Profile Drawer ── */
 .profile-overlay {
   position: fixed; inset: 0; z-index: 200;
   background: rgba(0,0,0,0.4);
@@ -595,7 +590,7 @@ footer button .icon { font-size: 20px; }
 <script>
 function getWsBase() {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const port  = window.location.port ? `:${window.location.port}` : '';
+  const port = window.location.port ? `:${window.location.port}` : '';
   return `${proto}://${window.location.hostname}${port}/ws`;
 }
 </script>
@@ -633,7 +628,7 @@ function getWsBase() {
           <div id="pauseOverlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.65);z-index:10;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;">
             <div style="font-size:52px;animation:pausePulse 1.5s ease-in-out infinite">⏸</div>
             <div style="color:white;font-weight:900;font-size:20px;margin-top:10px;letter-spacing:1px">MATCH EN PAUSE</div>
-            <div style="color:#ccc;font-size:13px;margin-top:6px">Caméra déconnectée — reconnexion en cours…</div>
+            <div style="color:#ccc;font-size:13px;margin-top:6px">Caméra déconnectée, reconnexion en cours…</div>
           </div>
         </div>
 
@@ -651,7 +646,7 @@ function getWsBase() {
       <div class="live-right">
         <div class="match-card">
           <div class="match-meta">
-            <span>Baby-foot — Match officiel</span>
+            <span>Baby-foot, match officiel</span>
             <span>En cours</span>
           </div>
           <div class="match-score">
@@ -661,7 +656,7 @@ function getWsBase() {
             </div>
             <div class="score-center">
               <span class="score-num" id="scoreRed">0</span>
-              <span class="score-sep">–</span>
+              <span class="score-sep">-</span>
               <span class="score-num" id="scoreBlue">0</span>
             </div>
             <div class="team">
@@ -679,7 +674,6 @@ function getWsBase() {
   </div>
 </div>
 
-<!-- Auth Modal -->
 <div class="auth-overlay hidden" id="authOverlay">
   <div class="auth-card">
     <div class="auth-header">
@@ -712,7 +706,6 @@ function getWsBase() {
 <div id="sec-jouer" class="section">
   <div class="page-content" style="max-width:520px">
 
-    <!-- Barre joueur connecté -->
     <div class="auth-user-bar" id="userBar" style="display:none;margin-bottom:16px;">
       <div class="user-info">
         <span class="user-name" id="userBarName">—</span>
@@ -721,21 +714,16 @@ function getWsBase() {
       <button class="btn-logout" onclick="authLogout()">Déconnexion</button>
     </div>
 
-
-
-    <!-- Boutons principaux -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
       <button class="btn-red" id="btnFilmer" style="font-size:15px;padding:16px 0;" onclick="startFilming()">📷 Je filme</button>
       <button class="btn-red" id="btnMatchmaking" style="font-size:15px;padding:16px 0;" onclick="startMatchmaking()">🎮 Jouer</button>
     </div>
 
-    <!-- Choix du mode de jeu -->
     <div style="display:flex;justify-content:center;gap:12px;margin-bottom:14px;" id="modeRow">
       <button class="mode-btn active" id="mcBtn1v1" onclick="mcSelect('1v1')">1v1</button>
       <button class="mode-btn" id="mcBtn2v2" onclick="mcSelect('2v2')">2v2</button>
     </div>
 
-    <!-- Carte babyfoot -->
     <div class="table-card" id="tableCard">
       <div class="table-card-top">
         <div class="table-icon">⚽</div>
@@ -747,21 +735,19 @@ function getWsBase() {
       </div>
       <div class="table-score-row" id="tableScoreRow" style="display:none">
         <span class="table-score-num" id="tsRed">0</span>
-        <span class="table-score-sep">–</span>
+        <span class="table-score-sep">-</span>
         <span class="table-score-num" id="tsBlue">0</span>
       </div>
     </div>
 
-    <!-- Panel caméra en attente -->
     <div class="mm-panel" id="filmingPanel" style="display:none">
       <div class="mm-header">
-        <span>📷 Tu filmes — en attente de validation</span>
+        <span>📷 Tu filmes, en attente de validation</span>
         <button class="mm-leave" onclick="stopFilming()">Annuler</button>
       </div>
       <div class="mm-hint">Un controller doit te sélectionner comme caméra</div>
     </div>
 
-    <!-- Panel pool de caméras (visible par les controllers) -->
     <div class="mm-panel" id="cameraPoolPanel" style="display:none">
       <div class="mm-header">
         <span>📷 Caméras disponibles</span>
@@ -770,7 +756,6 @@ function getWsBase() {
       <div class="mm-hint" id="cameraPoolHint">Sélectionne une caméra pour commencer</div>
     </div>
 
-    <!-- Salle d'attente matchmaking -->
     <div class="mm-panel" id="mmPanel" style="display:none">
       <div class="mm-header">
         <span id="mmTitle">Salle d'attente</span>
@@ -778,10 +763,9 @@ function getWsBase() {
       </div>
       <div class="mm-players" id="mmPlayers"></div>
       <div class="mm-hint" id="mmHint"></div>
-      <button class="btn-red" id="btnReady" onclick="mmReady()" style="display:none">✓ Je suis prêt</button>
+      <button class="btn-red" id="btnReady" onclick="mmReady()" style="display:none">Je suis prêt</button>
     </div>
 
-    <!-- Redirect après mm_start → controller -->
     <div class="role-panel" id="rolePanel" style="display:none">
       <div class="role-panel-icon">🎛</div>
       <div class="role-panel-title">Tu contrôles</div>
@@ -805,7 +789,6 @@ function getWsBase() {
   <button id="fb-stats" onclick="footerNav('stats',this)"><span class="icon">🏆</span>Classement</button>
 </footer>
 
-<!-- Profile Drawer -->
 <div class="profile-overlay" id="profileOverlay" onclick="closeProfileDrawer()"></div>
 <div class="profile-drawer" id="profileDrawer">
   <div class="profile-drawer-header">
@@ -827,7 +810,7 @@ function getWsBase() {
 <script>
 let ws = null, scoreR = 0, scoreB = 0;
 const canvas = document.getElementById('terrain');
-const ctx    = canvas.getContext('2d');
+const ctx = canvas.getContext('2d');
 
 function checkDesktop() {
   const dn = document.getElementById('desktopNav');
@@ -862,15 +845,15 @@ function updateDom() {
   const total = scoreR + scoreB;
   const pct = total === 0 ? 50 : Math.round(scoreR/total*100);
   document.getElementById('domFill').style.width = pct + '%';
-  document.getElementById('domRed').textContent  = pct + '%';
+  document.getElementById('domRed').textContent = pct + '%';
   document.getElementById('domBlue').textContent = (100-pct) + '%';
 }
 
-const FIELD_Y0 = Math.round(canvas.height * 40/880);  // marge but haut
-const FIELD_Y1 = canvas.height - FIELD_Y0;             // marge but bas
-const FIELD_H  = FIELD_Y1 - FIELD_Y0;
-const GOAL_X1  = Math.round(canvas.width * (25/68));   // bords du but x
-const GOAL_X2  = Math.round(canvas.width * (43/68));
+const FIELD_Y0 = Math.round(canvas.height * 40/880);
+const FIELD_Y1 = canvas.height - FIELD_Y0;
+const FIELD_H = FIELD_Y1 - FIELD_Y0;
+const GOAL_X1 = Math.round(canvas.width * (25/68));
+const GOAL_X2 = Math.round(canvas.width * (43/68));
 
 const STRIPES_COLORS = [
   ['#1b6b30','#175e2a'],
@@ -884,10 +867,8 @@ const STRIPES_COLORS = [
 
 function drawField() {
   const W = canvas.width, H = canvas.height;
-  // Fond noir pour zones hors-terrain
   ctx.fillStyle = '#0a0a0a';
   ctx.fillRect(0, 0, W, H);
-  // 7 bandes terrain
   STRIPES_COLORS.forEach(([c1, c2], i) => {
     const y0 = FIELD_Y0 + (i/7)*FIELD_H;
     const y1 = FIELD_Y0 + ((i+1)/7)*FIELD_H;
@@ -896,20 +877,16 @@ function drawField() {
     ctx.fillStyle = g;
     ctx.fillRect(0, y0, W, y1-y0);
   });
-  // Lignes joueurs (pointillés)
   ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=1; ctx.setLineDash([6,4]);
   for(let i=1;i<7;i++){const y=FIELD_Y0+(i/7)*FIELD_H;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
   ctx.setLineDash([]);
-  // Bordure terrain
   ctx.strokeStyle='rgba(255,255,255,0.75)'; ctx.lineWidth=2.5;
   ctx.strokeRect(12,FIELD_Y0,W-24,FIELD_H);
-  // Ligne médiane
   ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.lineWidth=2;
   const midY=FIELD_Y0+FIELD_H/2;
   ctx.beginPath();ctx.moveTo(12,midY);ctx.lineTo(W-12,midY);ctx.stroke();
   ctx.beginPath();ctx.arc(W/2,midY,44,0,Math.PI*2);ctx.stroke();
   ctx.beginPath();ctx.arc(W/2,midY,3,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,0.6)';ctx.fill();
-  // Zones de but (hors terrain)
   ctx.fillStyle='rgba(21,101,192,0.4)';
   ctx.fillRect(GOAL_X1,0,GOAL_X2-GOAL_X1,FIELD_Y0);
   ctx.strokeStyle='#42a5f5';ctx.lineWidth=2;
@@ -921,7 +898,6 @@ function drawField() {
 }
 function drawBall(nx, ny) {
   drawField();
-  // nx/ny sont normalisés sur [0..1] dans l'espace terrain (FIELD_Y0..FIELD_Y1)
   const x = nx * canvas.width;
   const y = FIELD_Y0 + ny * FIELD_H;
   ctx.shadowColor='rgba(0,0,0,0.4)'; ctx.shadowBlur=12;
@@ -930,14 +906,13 @@ function drawBall(nx, ny) {
   ctx.strokeStyle='#222'; ctx.lineWidth=1.5; ctx.stroke();
   ctx.shadowBlur=0;
 }
-function drawHeatmap(heatmap) { /* heatmap moved to live view – noop */ }
+function drawHeatmap(heatmap) {}
 drawField();
 
-// ── Live WebSocket (spectateur) ──
 function connect() {
   if (ws) return;
   ws = new WebSocket(`${getWsBase()}/spectator`);
-  ws.onopen  = () => setStatus('Connecté ✓','ok');
+  ws.onopen = () => setStatus('Connecté','ok');
   ws.onclose = () => { ws=null; setStatus('Déconnecté'); };
   ws.onmessage = (e) => {
     const d = JSON.parse(e.data);
@@ -978,7 +953,7 @@ async function loadLeaderboard() {
     rows.forEach((r, i) => {
       const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
       const rankEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
-      const wr   = r.winrate_pct != null ? r.winrate_pct + '%' : '—';
+      const wr = r.winrate_pct != null ? r.winrate_pct + '%' : '—';
       const prec = r.avg_precision_pct != null ? r.avg_precision_pct + '%' : '—';
       body.insertAdjacentHTML('beforeend', `
         <div class="leaderboard-row">
@@ -999,10 +974,7 @@ async function loadLeaderboard() {
   }
 }
 
-// ══════════════════════════════════════════════
-// AUTH
-// ══════════════════════════════════════════════
-let authTab    = 'login';
+let authTab = 'login';
 let currentUser = null;
 
 function authInit() {
@@ -1016,9 +988,8 @@ function authRenderUserBar() {
   const avatar = document.getElementById('headerAvatar');
   if (currentUser) {
     document.getElementById('userBarName').textContent = currentUser.display_name + ' (@' + currentUser.username + ')';
-    document.getElementById('userBarElo').textContent  = 'ELO ' + currentUser.elo;
+    document.getElementById('userBarElo').textContent = 'ELO ' + currentUser.elo;
     bar.style.display = 'flex';
-    // Header avatar
     const letter = (currentUser.display_name || currentUser.username || '?')[0].toUpperCase();
     document.getElementById('headerAvatarLetter').textContent = letter;
     avatar.style.display = 'flex';
@@ -1042,8 +1013,8 @@ function authClearError()   { document.getElementById('authError').classList.rem
 
 async function authSubmit() {
   authClearError();
-  const username     = document.getElementById('authUsername').value.trim().toLowerCase();
-  const password     = document.getElementById('authPassword').value;
+  const username = document.getElementById('authUsername').value.trim().toLowerCase();
+  const password = document.getElementById('authPassword').value;
   const display_name = document.getElementById('authDisplayName').value.trim();
   if (!username || !password) { authShowError('Remplis tous les champs.'); return; }
   if (authTab === 'register' && !display_name) { authShowError('Choisis un nom affiché.'); return; }
@@ -1051,9 +1022,9 @@ async function authSubmit() {
   const btn = document.getElementById('authSubmit');
   btn.disabled = true; btn.textContent = '...';
   try {
-    const url  = authTab === 'login' ? '/api/auth/login' : '/api/auth/register';
+    const url = authTab === 'login' ? '/api/auth/login' : '/api/auth/register';
     const body = authTab === 'login' ? { username, password } : { username, display_name, password };
-    const res  = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     const data = await res.json();
     if (!res.ok) { authShowError(data.error || 'Erreur inconnue'); return; }
     currentUser = data;
@@ -1069,20 +1040,20 @@ function authLogout() {
   localStorage.removeItem('ka_user');
   authRenderUserBar();
   lobbyClose();
-  document.getElementById('mmPanel').style.display        = 'none';
-  document.getElementById('rolePanel').style.display      = 'none';
-  document.getElementById('filmingPanel').style.display   = 'none';
+  document.getElementById('mmPanel').style.display = 'none';
+  document.getElementById('rolePanel').style.display = 'none';
+  document.getElementById('filmingPanel').style.display = 'none';
   document.getElementById('cameraPoolPanel').style.display= 'none';
-  document.getElementById('btnFilmer').style.display      = 'block';
+  document.getElementById('btnFilmer').style.display = 'block';
   document.getElementById('btnMatchmaking').style.display = 'block';
-  document.getElementById('modeRow').style.display        = 'flex';
+  document.getElementById('modeRow').style.display = 'flex';
 }
 
 function authGuard() {
   if (!currentUser) {
     document.getElementById('authOverlay').classList.remove('hidden');
-    document.getElementById('authUsername').value    = '';
-    document.getElementById('authPassword').value    = '';
+    document.getElementById('authUsername').value = '';
+    document.getElementById('authPassword').value = '';
     document.getElementById('authDisplayName').value = '';
     authClearError(); authSwitchTab('login');
     return false;
@@ -1090,16 +1061,13 @@ function authGuard() {
   return true;
 }
 
-// ══════════════════════════════════════════════
-// TABLE STATUS
-// ══════════════════════════════════════════════
 let lastTableState = null;
 
 function renderTableStatus(d) {
   lastTableState = d.state;
-  const pill     = document.getElementById('tableStatusPill');
+  const pill = document.getElementById('tableStatusPill');
   const subtitle = document.getElementById('tableSubtitle');
-  const card     = document.getElementById('tableCard');
+  const card = document.getElementById('tableCard');
   const scoreRow = document.getElementById('tableScoreRow');
 
   const labels = {
@@ -1108,16 +1076,15 @@ function renderTableStatus(d) {
     waiting_camera: ['Cherche caméra',  '🟠 Cherche caméra', 'En attente d\'une caméra'],
     calibrating:    ['Calibration…',    '🔵 Calibration',    'Calibration du terrain en cours'],
     playing:        ['Match en cours',  '🔴 Match en cours', 'Match en cours'],
-    paused:         ['Pause',           '⏸ Pause',           'Caméra déconnectée — en pause'],
+    paused:         ['Pause',           '⏸ Pause',           'Caméra déconnectée, en pause'],
   };
   const [, pillLabel, subLabel] = labels[d.state] || ['—','—','—'];
   pill.textContent = pillLabel;
-  pill.className   = 'table-status-pill ' + d.state;
+  pill.className = 'table-status-pill ' + d.state;
   subtitle.textContent = subLabel;
   card.classList.toggle('occupied', d.state !== 'idle');
   scoreRow.style.display = d.state === 'playing' ? 'flex' : 'none';
 
-  // Pool de caméras → visible si on est controller en waiting_camera ou paused
   renderCameraPool(d);
 
   if (d.room && document.getElementById('mmPanel').style.display !== 'none') {
@@ -1126,14 +1093,13 @@ function renderTableStatus(d) {
 }
 
 function renderCameraPool(d) {
-  const pool  = d.camera_pool || [];
+  const pool = d.camera_pool || [];
   const panel = document.getElementById('cameraPoolPanel');
-  const list  = document.getElementById('cameraPoolList');
-  const hint  = document.getElementById('cameraPoolHint');
+  const list = document.getElementById('cameraPoolList');
+  const hint = document.getElementById('cameraPoolHint');
 
-  // Affiche le pool si on est controller et qu'on attend une caméra
   const isController = myRole === 'controller';
-  const needsCamera  = d.state === 'waiting_camera' || d.state === 'paused';
+  const needsCamera = d.state === 'waiting_camera' || d.state === 'paused';
 
   if (!needsCamera || !isController) {
     panel.style.display = 'none';
@@ -1142,10 +1108,9 @@ function renderCameraPool(d) {
 
   panel.style.display = 'block';
   hint.textContent = d.state === 'paused'
-    ? '⏸ Match en pause — sélectionne une nouvelle caméra pour reprendre'
+    ? '⏸ Match en pause, sélectionne une nouvelle caméra pour reprendre'
     : 'Sélectionne une caméra pour démarrer la calibration';
 
-  // Y a-t-il déjà une caméra dans le pool ?
   const filmBtn = pool.length === 0 ? `
     <div class="mm-player-row" style="border-top:1px solid var(--border);margin-top:6px;padding-top:10px;">
       <span class="mm-player-name" style="color:var(--muted);font-size:13px">Pas de caméra ?</span>
@@ -1178,29 +1143,24 @@ function selectCamera(username) {
   lobbyWs.send(JSON.stringify({ type: 'select_camera', username }));
 }
 
-// ══════════════════════════════════════════════
-// MATCHMAKING
-// ══════════════════════════════════════════════
-let lobbyWs   = null;
-let mmMode    = '1v1';
-let mmReady_  = false;
+let lobbyWs = null;
+let mmMode = '1v1';
+let mmReady_ = false;
 let isFilming = false;
-let myRole    = null; // 'controller' | 'camera' | null
+let myRole = null;
 
 function startFilming(asPlayer = false) {
   if (!authGuard()) return;
   isFilming = true;
-  myRole    = 'camera';
-  document.getElementById('filmingPanel').style.display   = 'block';
-  document.getElementById('btnFilmer').style.display      = 'none';
+  myRole = 'camera';
+  document.getElementById('filmingPanel').style.display = 'block';
+  document.getElementById('btnFilmer').style.display = 'none';
   document.getElementById('btnMatchmaking').style.display = 'none';
-  document.getElementById('modeRow').style.display        = 'none';
+  document.getElementById('modeRow').style.display = 'none';
 
   if (asPlayer) {
-    // Joueur-caméra : déjà validé par le matchmaking, redirige direct
     window.location.href = '/camera.html';
   } else {
-    // Admin caméra : rejoint le pool via lobbyWs et attend camera_validated
     document.getElementById('filmingPanel').querySelector('.mm-hint').textContent =
       'En attente de validation par le controller…';
     lobbyConnect(() => {
@@ -1218,11 +1178,11 @@ function startFilming(asPlayer = false) {
 
 function stopFilming() {
   isFilming = false;
-  myRole    = null;
-  document.getElementById('filmingPanel').style.display   = 'none';
-  document.getElementById('btnFilmer').style.display      = 'block';
+  myRole = null;
+  document.getElementById('filmingPanel').style.display = 'none';
+  document.getElementById('btnFilmer').style.display = 'block';
   document.getElementById('btnMatchmaking').style.display = 'block';
-  document.getElementById('modeRow').style.display        = 'flex';
+  document.getElementById('modeRow').style.display = 'flex';
 }
 
 function startMatchmaking() {
@@ -1268,12 +1228,10 @@ function lobbyConnect(onOpenCb) {
       alert(d.error);
     }
     if (d.type === 'mm_start') {
-      // Tous deviennent controllers
       mmReady_ = false;
-      myRole   = 'controller';
-      document.getElementById('mmPanel').style.display   = 'none';
+      myRole = 'controller';
+      document.getElementById('mmPanel').style.display = 'none';
       document.getElementById('rolePanel').style.display = 'block';
-      // Affiche le pool de caméras si waiting_camera
       if (lastTableState === 'waiting_camera') {
         document.getElementById('cameraPoolPanel').style.display = 'block';
       }
@@ -1287,7 +1245,6 @@ function lobbyConnect(onOpenCb) {
       document.getElementById('cameraPoolPanel').style.display = 'none';
     }
     if (d.type === 'camera_validated' && isFilming && myRole === 'camera') {
-      // Admin caméra validé par le controller → on peut aller sur camera.html
       window.location.href = '/camera.html';
     }
     if (d.type === 'elo_update' && d.new_elos && currentUser) {
@@ -1311,22 +1268,20 @@ function renderMmPanel(d) {
     document.getElementById('mmPanel').style.display = 'none';
     return;
   }
-  // Vérifie si je suis dans la room
   const imIn = currentUser && d.room.players.some(p => p.username === currentUser.username);
   if (!imIn) return;
 
   document.getElementById('mmPanel').style.display = 'block';
-  const needed  = d.room.needed;
+  const needed = d.room.needed;
   const players = d.room.players;
-  const title   = d.room.mode === '1v1' ? 'Salle 1v1' : 'Salle 2v2';
-  document.getElementById('mmTitle').textContent = `${title} — ${players.length}/${needed}`;
+  const title = d.room.mode === '1v1' ? 'Salle 1v1' : 'Salle 2v2';
+  document.getElementById('mmTitle').textContent = `${title} (${players.length}/${needed})`;
 
-  // Liste joueurs + slots vides
   const colors = ['#e50914','#1565c0','#2e7d32','#f57f17'];
   let html = '';
   players.forEach((p, i) => {
     const chip = p.ready
-      ? '<span class="mm-ready-chip">✓ Prêt</span>'
+      ? '<span class="mm-ready-chip">Prêt</span>'
       : '<span class="mm-waiting-chip">En attente</span>';
     html += `<div class="mm-player-row">
       <div class="mm-avatar" style="background:${colors[i%4]}">${p.display_name[0].toUpperCase()}</div>
@@ -1340,19 +1295,18 @@ function renderMmPanel(d) {
   }
   document.getElementById('mmPlayers').innerHTML = html;
 
-  // Hint + bouton prêt
   const myInfo = players.find(p => p.username === currentUser?.username);
-  const allIn  = players.length === needed;
+  const allIn = players.length === needed;
   const btnReady = document.getElementById('btnReady');
 
   if (!allIn) {
     document.getElementById('mmHint').textContent = `Attends que ${needed - players.length} joueur(s) rejoignent…`;
     btnReady.style.display = 'none';
   } else if (myInfo && !myInfo.ready) {
-    document.getElementById('mmHint').textContent = 'Tout le monde est là — confirme !';
+    document.getElementById('mmHint').textContent = 'Tout le monde est là. Confirme !';
     btnReady.style.display = 'block';
     btnReady.disabled = false;
-    btnReady.textContent = '✓ Je suis prêt';
+    btnReady.textContent = 'Je suis prêt';
   } else {
     const notReady = players.filter(p => !p.ready).length;
     document.getElementById('mmHint').textContent = `En attente de ${notReady} joueur(s)…`;
@@ -1370,17 +1324,14 @@ function mmReady() {
 function mmLeave() {
   lobbyWs?.send(JSON.stringify({ type: 'mm_leave' }));
   myRole = null;
-  document.getElementById('mmPanel').style.display        = 'none';
-  document.getElementById('rolePanel').style.display      = 'none';
+  document.getElementById('mmPanel').style.display = 'none';
+  document.getElementById('rolePanel').style.display = 'none';
   document.getElementById('cameraPoolPanel').style.display= 'none';
-  document.getElementById('btnMatchmaking').disabled       = false;
-  document.getElementById('btnMatchmaking').textContent    = '🎮 Jouer';
+  document.getElementById('btnMatchmaking').disabled = false;
+  document.getElementById('btnMatchmaking').textContent = '🎮 Jouer';
   lobbyClose();
 }
 
-// ══════════════════════════════════════════════
-// SECTION ROUTING
-// ══════════════════════════════════════════════
 function showSection(id) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.getElementById('sec-' + id).classList.add('active');
@@ -1390,22 +1341,19 @@ function showSection(id) {
   if (id === 'jouer') authRenderUserBar();
 }
 
-// ══════════════════════════════════════════════
-// PROFILE DRAWER
-// ══════════════════════════════════════════════
 function toggleProfileDrawer() {
-  const drawer  = document.getElementById('profileDrawer');
+  const drawer = document.getElementById('profileDrawer');
   const overlay = document.getElementById('profileOverlay');
-  const isOpen  = drawer.classList.contains('open');
+  const isOpen = drawer.classList.contains('open');
   if (isOpen) { closeProfileDrawer(); return; }
   openProfileDrawer();
 }
 
 function openProfileDrawer() {
   if (!currentUser) return;
-  const drawer  = document.getElementById('profileDrawer');
+  const drawer = document.getElementById('profileDrawer');
   const overlay = document.getElementById('profileOverlay');
-  const letter  = (currentUser.display_name || currentUser.username || '?')[0].toUpperCase();
+  const letter = (currentUser.display_name || currentUser.username || '?')[0].toUpperCase();
   document.getElementById('drawerAvatarLetter').textContent = letter;
   document.getElementById('drawerName').textContent = currentUser.display_name;
   document.getElementById('drawerUser').textContent = '@' + currentUser.username;
@@ -1428,7 +1376,7 @@ async function loadProfileStats() {
     if (!res.ok) throw new Error('not found');
     const d = await res.json();
 
-    const wr   = d.winrate_pct != null ? d.winrate_pct + '%' : '—';
+    const wr = d.winrate_pct != null ? d.winrate_pct + '%' : '—';
     const prec = d.avg_precision_pct != null ? d.avg_precision_pct + '%' : '—';
     const poss = d.avg_possession != null ? d.avg_possession + '%' : '—';
     const wins = d.wins ?? 0;
@@ -1438,10 +1386,10 @@ async function loadProfileStats() {
     let histHtml = '';
     if (d.recent_matches && d.recent_matches.length > 0) {
       d.recent_matches.forEach(m => {
-        const won  = m.won;
+        const won = m.won;
         const draw = m.draw;
-        const cls  = draw ? 'draw' : won ? 'win' : 'loss';
-        const lbl  = draw ? 'N'    : won ? 'V'   : 'D';
+        const cls = draw ? 'draw' : won ? 'win' : 'loss';
+        const lbl = draw ? 'N' : won ? 'V' : 'D';
         const delta = m.elo_delta ?? 0;
         const eloCls = delta > 0 ? 'pos' : delta < 0 ? 'neg' : 'neu';
         const eloStr = delta > 0 ? '+' + delta : delta === 0 ? '±0' : '' + delta;
@@ -1449,7 +1397,7 @@ async function loadProfileStats() {
         histHtml += `<div class="profile-match-row">
           <div class="profile-match-result ${cls}">${lbl}</div>
           <div>
-            <div class="profile-match-score">${m.score_my_team} – ${m.score_opp}</div>
+            <div class="profile-match-score">${m.score_my_team} - ${m.score_opp}</div>
             <div class="profile-match-meta">${mode} · ${m.date ? new Date(m.date).toLocaleDateString('fr-FR') : '—'}</div>
           </div>
           <div class="profile-match-elo ${eloCls}">${eloStr}</div>
