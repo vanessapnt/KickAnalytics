@@ -244,21 +244,13 @@ async def handle_camera(request):
     state.cameras.add(ws)
     await camera_joined(ws, username, display_name)
 
-    validated = False
-
     try:
         async for msg in ws:
             if msg.type == WSMsgType.TEXT:
                 data = json.loads(msg.data)
                 msg_type = data.get("type")
 
-                if not validated and msg_type in ("frame", "calibration_frame", "calibration_preview"):
-                    continue
-
-                if msg_type == "camera_validated_ack":
-                    validated = True
-
-                elif msg_type in ("frame", "calibration_frame", "calibration_preview", "calibration_failed"):
+                if msg_type in ("frame", "calibration_frame", "calibration_preview", "calibration_failed"):
                     await process_camera_message(ws, msg.data)
 
             elif msg.type in (WSMsgType.ERROR, WSMsgType.CLOSE):
@@ -274,12 +266,19 @@ async def handle_controller(request):
     state.controllers.add(ws)
     from matchmaking import table_status_payload
     await ws.send_str(json.dumps(table_status_payload()))
-    if state.active_camera_ws and not state.active_camera_ws.closed:
-        cam_info = state.camera_pool.get(state.active_camera_ws, {})
+    cam_ws = state.active_camera_ws
+    cam_username = state.active_camera_username
+    if cam_username and (cam_ws is None or cam_ws.closed):
+        await ws.send_str(json.dumps({
+            "type": "camera_selected",
+            "camera": {"username": cam_username, "display_name": cam_username},
+        }))
+    elif cam_ws and not cam_ws.closed:
+        cam_info = state.camera_pool.get(cam_ws, {})
         await ws.send_str(json.dumps({
             "type": "camera_selected",
             "camera": {
-                "username": state.active_camera_username or cam_info.get("username", ""),
+                "username": cam_username or cam_info.get("username", ""),
                 "display_name": cam_info.get("display_name", ""),
             }
         }))
@@ -289,14 +288,29 @@ async def handle_controller(request):
                 data = json.loads(msg.data)
                 msg_type = data.get("type")
                 if msg_type == "trigger_calibration":
-                    if state.active_camera_ws and not state.active_camera_ws.closed:
-                        await state.active_camera_ws.send_str(json.dumps({"type": "start_calibration"}))
+                    cam = state.active_camera_ws
+                    if cam is None or cam.closed:
+                        cam = next((w for w in state.camera_pool if not w.closed), None)
+                        if cam:
+                            state.active_camera_ws = cam
+                            state.active_camera_username = state.camera_pool[cam]["username"]
+                    if cam and not cam.closed:
+                        state.match_over = False
+                        await cam.send_str(json.dumps({"type": "start_calibration"}))
+                        print(f"[CTRL] start_calibration sent to {state.active_camera_username}")
+                    else:
+                        print("[CTRL] trigger_calibration: no camera available")
                 elif msg_type == "set_players":
                     state.current_match["mode"] = data.get("mode", "1v1")
                     state.current_match["red"] = data.get("red", [])
                     state.current_match["blue"] = data.get("blue", [])
                     state.current_match["roles"] = data.get("roles", {"red": [], "blue": []})
                     print(f"[MATCH] Mode={state.current_match['mode']} Red={state.current_match['red']} Blue={state.current_match['blue']}")
+                elif msg_type == "force_end_match":
+                    if not state.match_over:
+                        from matchmaking import _force_end_match
+                        await _force_end_match(keep_room=True)
+
                 elif msg_type == "confirm_calibration":
                     ok = confirm_calibration()
                     if ok:

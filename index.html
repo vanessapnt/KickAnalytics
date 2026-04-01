@@ -770,7 +770,7 @@ function getWsBase() {
       <div class="role-panel-icon">🎛</div>
       <div class="role-panel-title">Tu contrôles</div>
       <div class="role-panel-sub">Ouvre le contrôleur pour gérer le match</div>
-      <a class="btn-red" href="/controller.html">Ouvrir le contrôleur</a>
+      <button class="btn-red" onclick="openController()">Ouvrir le contrôleur</button>
     </div>
 
   </div>
@@ -1062,9 +1062,11 @@ function authGuard() {
 }
 
 let lastTableState = null;
+let lastTableStatusData = null;
 
 function renderTableStatus(d) {
   lastTableState = d.state;
+  lastTableStatusData = d;
   const pill = document.getElementById('tableStatusPill');
   const subtitle = document.getElementById('tableSubtitle');
   const card = document.getElementById('tableCard');
@@ -1087,37 +1089,41 @@ function renderTableStatus(d) {
 
   renderCameraPool(d);
 
-  if (d.room && document.getElementById('mmPanel').style.display !== 'none') {
+  if (d.room) {
     renderMmPanel(d);
   }
 }
 
 function renderCameraPool(d) {
-  const pool = d.camera_pool || [];
+  const rawPool = d.camera_pool || [];
+  // Dédupliquer par username (garde le dernier)
+  const seen = new Set();
+  const pool = rawPool.filter(cam => {
+    if (seen.has(cam.username)) return false;
+    seen.add(cam.username);
+    return true;
+  });
+
   const panel = document.getElementById('cameraPoolPanel');
   const list = document.getElementById('cameraPoolList');
   const hint = document.getElementById('cameraPoolHint');
 
-  const isController = myRole === 'controller';
-  const needsCamera = d.state === 'waiting_camera' || d.state === 'paused';
-
-  if (!needsCamera || !isController) {
+  if (myRole !== 'controller' || d.state !== 'waiting_camera') {
     panel.style.display = 'none';
     return;
   }
 
   panel.style.display = 'block';
-  hint.textContent = d.state === 'paused'
-    ? '⏸ Match en pause, sélectionne une nouvelle caméra pour reprendre'
-    : 'Sélectionne une caméra pour démarrer la calibration';
+  hint.textContent = 'Sélectionne une caméra pour démarrer la calibration';
 
-  const filmBtn = pool.length === 0 ? `
+  // Bouton "Je filme" toujours présent
+  const filmBtn = `
     <div class="mm-player-row" style="border-top:1px solid var(--border);margin-top:6px;padding-top:10px;">
-      <span class="mm-player-name" style="color:var(--muted);font-size:13px">Pas de caméra ?</span>
+      <span class="mm-player-name" style="color:var(--muted);font-size:13px">Je filme et je joue</span>
       <button class="btn-red" style="width:auto;padding:6px 14px;font-size:12px;margin-left:auto"
         onclick="startFilming(true)">📷 Je filme</button>
     </div>
-  ` : '';
+  `;
 
   if (pool.length === 0) {
     list.innerHTML = '<div class="mm-slot">Aucune caméra disponible…</div>' + filmBtn;
@@ -1151,6 +1157,13 @@ let myRole = null;
 
 function startFilming(asPlayer = false) {
   if (!authGuard()) return;
+
+  if (asPlayer) {
+    // Joueur qui filme depuis la room : redirige directement, garde la room intacte
+    window.location.href = '/camera.html';
+    return;
+  }
+
   isFilming = true;
   myRole = 'camera';
   document.getElementById('filmingPanel').style.display = 'block';
@@ -1158,8 +1171,8 @@ function startFilming(asPlayer = false) {
   document.getElementById('btnMatchmaking').style.display = 'none';
   document.getElementById('modeRow').style.display = 'none';
 
-  if (asPlayer) {
-    window.location.href = '/camera.html';
+  if (false) {
+    // unreachable, kept for structure
   } else {
     document.getElementById('filmingPanel').querySelector('.mm-hint').textContent =
       'En attente de validation par le controller…';
@@ -1321,6 +1334,13 @@ function mmReady() {
   document.getElementById('btnReady').textContent = '⏳ En attente…';
 }
 
+function openController() {
+  if (lobbyWs && lobbyWs.readyState === WebSocket.OPEN) {
+    lobbyWs.send(JSON.stringify({ type: 'mm_become_controller' }));
+  }
+  window.location.href = '/controller.html';
+}
+
 function mmLeave() {
   lobbyWs?.send(JSON.stringify({ type: 'mm_leave' }));
   myRole = null;
@@ -1333,12 +1353,36 @@ function mmLeave() {
 }
 
 function showSection(id) {
+  // Si le joueur est controller ET match en cours → arrêt du match en quittant "jouer"
+  if (id !== 'jouer' && myRole === 'controller' && lobbyWs && lobbyWs.readyState === WebSocket.OPEN) {
+    lobbyWs.send(JSON.stringify({ type: 'mm_leave_match' }));
+    myRole = null;
+    document.getElementById('rolePanel').style.display = 'none';
+    document.getElementById('cameraPoolPanel').style.display = 'none';
+    document.getElementById('mmPanel').style.display = 'none';
+    document.getElementById('btnMatchmaking').disabled = false;
+    document.getElementById('btnMatchmaking').textContent = '🎮 Jouer';
+    lobbyClose();
+  }
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.getElementById('sec-' + id).classList.add('active');
   if (id === 'live' && !ws) connect();
   if (id !== 'live') disconnect();
   if (id === 'stats') loadLeaderboard();
-  if (id === 'jouer') authRenderUserBar();
+  if (id === 'jouer') {
+    authRenderUserBar();
+    // Re-render l'UI depuis le dernier état connu si le lobbyWs est toujours ouvert
+    if (lobbyWs && lobbyWs.readyState === WebSocket.OPEN && lastTableStatusData) {
+      renderTableStatus(lastTableStatusData);
+      renderMmPanel(lastTableStatusData);
+      if (myRole === 'controller') {
+        document.getElementById('rolePanel').style.display = 'block';
+        if (lastTableState === 'waiting_camera' || lastTableState === 'paused') {
+          document.getElementById('cameraPoolPanel').style.display = 'block';
+        }
+      }
+    }
+  }
 }
 
 function toggleProfileDrawer() {

@@ -169,7 +169,7 @@ function getWsBase() {
 <video id="video" autoplay playsinline muted></video>
 
 <script>
-let ws=null,running=false,stream=null,calibrated=false,validated=false;
+let ws=null,running=false,stream=null,calibrated=false;
 const video=document.getElementById('video');
 const preview=document.getElementById('preview');
 const pCtx=preview.getContext('2d');
@@ -235,17 +235,11 @@ async function start(){
 
     function setupSocket(){
       ws=new WebSocket(wsUrl);
-      ws.onopen=()=>setStatus('En attente de validation...','ok');
+      ws.onopen=()=>{setStatus('Connectée','ok');setTerrain('En attente calibration...');};
       ws.onclose=()=>{setStatus('Reconnexion...');if(running)setTimeout(setupSocket,2000);};
       ws.onmessage=(e)=>{
         const d=JSON.parse(e.data);
-        if(d.type==='camera_validated'){
-          validated=true;
-          ws.send(JSON.stringify({type:'camera_validated_ack'}));
-          setStatus('Validée, attends la calibration','ok');
-          setTerrain('En attente calibration...');
-        }
-        else if(d.type==='start_calibration')calibrate();
+        if(d.type==='start_calibration')calibrate();
         else if(d.type==='calibration_preview'){showPreview(d.corners);ws?.send(JSON.stringify({type:'calibration_preview',image:capturePreview(),corners:d.corners,frame_width:video.videoWidth,frame_height:video.videoHeight}));setTerrain('Vérifie le contour...');}
         else if(d.type==='calibration_failed'){setTerrain('Non détecté ❌');showPreview(null);}
         else if(d.type==='calibration_ok'){calibrated=true;showPreview(null);setTerrain('Calibré',true);startTracking();}
@@ -261,7 +255,7 @@ async function start(){
 }
 
 function stop(){
-  running=calibrated=validated=false;
+  running=calibrated=false;
   if(trackingLoop!==null){clearTimeout(trackingLoop);trackingLoop=null;}
   showPreview(null);stream?.getTracks().forEach(t=>t.stop());stream=null;
   ws?.close();ws=null;

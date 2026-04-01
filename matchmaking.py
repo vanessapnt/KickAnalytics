@@ -20,10 +20,10 @@ def table_status_payload():
         "type": "table_status",
         "state": state.table_state,
         "room": room,
-        "camera_pool": [
-            {"username": v["username"], "display_name": v["display_name"]}
+        "camera_pool": list({
+            v["username"]: {"username": v["username"], "display_name": v["display_name"]}
             for v in state.camera_pool.values()
-        ],
+        }.values()),
         "match_paused": state.match_paused,
     }
 
@@ -40,30 +40,15 @@ async def broadcast_table_status():
 CAMERA_POOL_MAX = 3
 
 async def camera_joined(ws, username, display_name):
-    if state.match_paused and state.active_camera_username == username:
-        state.camera_pool[ws] = {"username": username, "display_name": display_name}
-        state.active_camera_ws = ws
-        state.match_paused = False
-        state.table_state = "playing"
-        await ws.send_str(json.dumps({"type": "camera_validated"}))
-        await ws.send_str(json.dumps({"type": "calibration_ok"}))
-        await broadcast(state.controllers, {"type": "camera_resumed", "display_name": display_name})
-        await broadcast(state.spectators, {"type": "camera_resumed"})
-        await broadcast_table_status()
-        print(f"[CAM POOL] {display_name} reconnected -> auto resume")
-        return
-
     is_matchmaking_player = (
         state.matchmaking_room and
         any(p["username"] == username for p in state.matchmaking_room["players"])
     )
-    if is_matchmaking_player and state.table_state in ("waiting_camera", "calibrating", "playing", "paused"):
+    if is_matchmaking_player and state.table_state in ("waiting_camera", "calibrating", "playing"):
         state.camera_pool[ws] = {"username": username, "display_name": display_name}
         state.active_camera_ws = ws
         state.active_camera_username = username
-        state.match_paused = False
         state.table_state = "calibrating"
-        await ws.send_str(json.dumps({"type": "camera_validated"}))
         await broadcast(state.controllers, {"type": "camera_selected",
                                             "camera": {"username": username, "display_name": display_name}})
         await broadcast_table_status()
@@ -76,7 +61,6 @@ async def camera_joined(ws, username, display_name):
         state.active_camera_ws = ws
         state.active_camera_username = username
         state.table_state = "calibrating"
-        await ws.send_str(json.dumps({"type": "camera_validated"}))
         await broadcast(state.controllers, {"type": "camera_selected",
                                             "camera": {"username": username, "display_name": display_name}})
         await broadcast_table_status()
@@ -96,16 +80,48 @@ async def camera_joined(ws, username, display_name):
     print(f"[CAM POOL] {display_name} joined the pool ({len(state.camera_pool)} cameras)")
 
 
+async def _force_end_match(keep_room=False):
+    """Force la fin du match proprement : reset état, broadcast, sauvegarde.
+    keep_room=True : garde la matchmaking_room active (arrêt volontaire, rejouer possible).
+    keep_room=False : détruit la room (déconnexion joueur).
+    """
+    from game import game
+    from handlers import save_match_end, compute_stats
+    import asyncio as _asyncio
+
+    state.match_over = True
+    state.active_camera_ws = None
+    state.prevalidated_camera_username = None
+    state.camera_pool.clear()
+
+    if keep_room and state.matchmaking_room:
+        state.table_state = "waiting_camera"
+    else:
+        state.table_state = "idle"
+        state.active_camera_username = None
+        state.matchmaking_room = None
+
+    stats = compute_stats()
+    score = dict(game.score)
+    reason = "force_ended" if keep_room else "disconnected"
+    await broadcast(state.spectators, {"type": "match_end", "score": score, "stats": stats, "reason": reason})
+    await broadcast(state.controllers, {"type": "match_end", "score": score, "stats": stats, "reason": reason})
+    _asyncio.create_task(save_match_end(score, stats))
+    await broadcast_table_status()
+    print(f"[MM] Match force-ended (keep_room={keep_room}), table -> {state.table_state}")
+
 async def camera_left(ws):
     state.camera_pool.pop(ws, None)
 
     if ws is state.active_camera_ws:
         state.active_camera_ws = None
-        state.match_paused = True
-        state.table_state = "paused"
-        await broadcast(state.spectators, {"type": "match_paused"})
-        await broadcast(state.controllers, {"type": "match_paused"})
-        print("[CAM POOL] Active camera disconnected -> match paused")
+        if not state.match_over and state.table_state in ("playing", "calibrating"):
+            print("[CAM POOL] Active camera disconnected -> forcing match end")
+            await _force_end_match(keep_room=True)
+        else:
+            print("[CAM POOL] Active camera disconnected but match already over, ignoring")
+        await broadcast_table_status()
+        return
 
     await broadcast_table_status()
 
@@ -124,28 +140,19 @@ async def select_camera(controller_ws, camera_username):
 
     info = state.camera_pool.get(target_ws) or {"username": camera_username, "display_name": camera_username}
 
-    if state.match_paused:
+    if target_ws in state.camera_pool:
         state.active_camera_ws = target_ws
         state.active_camera_username = info["username"]
-        state.match_paused = False
         state.table_state = "calibrating"
         await target_ws.send_str(json.dumps({"type": "camera_validated"}))
-        await broadcast(state.controllers, {"type": "camera_reselected", "camera": info})
-        print(f"[CAM POOL] {info['display_name']} resumes the match")
+        await broadcast(state.controllers, {"type": "camera_selected", "camera": info})
+        print(f"[CAM POOL] {info['display_name']} validated as camera")
     else:
-        if target_ws in state.camera_pool:
-            state.active_camera_ws = target_ws
-            state.active_camera_username = info["username"]
-            state.table_state = "calibrating"
-            await target_ws.send_str(json.dumps({"type": "camera_validated"}))
-            await broadcast(state.controllers, {"type": "camera_selected", "camera": info})
-            print(f"[CAM POOL] {info['display_name']} validated as camera")
-        else:
-            state.prevalidated_camera_username = camera_username
-            state.table_state = "calibrating"
-            await target_ws.send_str(json.dumps({"type": "camera_validated"}))
-            await broadcast(state.controllers, {"type": "camera_selected", "camera": info})
-            print(f"[CAM POOL] {camera_username} pre-validated, waiting for camera.html")
+        state.prevalidated_camera_username = camera_username
+        state.table_state = "calibrating"
+        await target_ws.send_str(json.dumps({"type": "camera_validated"}))
+        await broadcast(state.controllers, {"type": "camera_selected", "camera": info})
+        print(f"[CAM POOL] {camera_username} pre-validated, waiting for camera.html")
 
     await broadcast_table_status()
 
@@ -162,6 +169,7 @@ async def kick_camera(controller_ws, camera_username):
     print(f"[CAM POOL] {display} kicked")
 
 async def _mm_remove_player(ws):
+    state.ws_players.pop(ws, None)
     if not state.matchmaking_room:
         return
     before = len(state.matchmaking_room["players"])
@@ -170,8 +178,7 @@ async def _mm_remove_player(ws):
     ]
     if len(state.matchmaking_room["players"]) == 0:
         state.matchmaking_room = None
-        if state.table_state == "waiting_camera":
-            state.table_state = "idle"
+        state.table_state = "idle"
     changed = (len(state.matchmaking_room["players"]) != before) if state.matchmaking_room else (before > 0)
     if changed:
         await broadcast_table_status()
@@ -228,10 +235,16 @@ async def handle_lobby(request):
                     mode = data.get("mode", "1v1")
 
                     if state.matchmaking_room and any(
-                        p["username"] == username for p in state.matchmaking_room["players"]
+                        p["username"] == username and p["ws"] is not ws
+                        for p in state.matchmaking_room["players"]
                     ):
                         await ws.send_str(json.dumps({"type": "mm_error", "error": "You are already in the room"}))
                         continue
+                    if state.matchmaking_room:
+                        state.matchmaking_room["players"] = [
+                            p for p in state.matchmaking_room["players"]
+                            if not (p["username"] == username and p["ws"] is not ws)
+                        ]
 
                     if state.table_state == "idle":
                         state.matchmaking_room = {"mode": mode, "players": []}
@@ -240,6 +253,9 @@ async def handle_lobby(request):
                         await ws.send_str(json.dumps({"type": "mm_error", "error": "Table is busy"}))
                         continue
 
+                    if not state.matchmaking_room:
+                        await ws.send_str(json.dumps({"type": "mm_error", "error": "Table is busy"}))
+                        continue
                     needed = 2 if state.matchmaking_room["mode"] == "1v1" else 4
                     if len(state.matchmaking_room["players"]) >= needed:
                         await ws.send_str(json.dumps({"type": "mm_error", "error": "Room is full"}))
@@ -251,6 +267,15 @@ async def handle_lobby(request):
                     })
                     state.ws_players[ws] = {"username": username, "display_name": display_name, "elo": elo}
                     await broadcast_table_status()
+
+                elif msg_type == "mm_become_controller":
+                    if state.matchmaking_room:
+                        for p in state.matchmaking_room["players"]:
+                            if p["ws"] is ws:
+                                p["ws"] = None
+                                break
+                    state.ws_players.pop(ws, None)
+                    print(f"[MM] Player detached WS to become controller")
 
                 elif msg_type == "mm_leave":
                     await _mm_remove_player(ws)
@@ -291,7 +316,19 @@ async def handle_lobby(request):
                 break
     finally:
         state.spectators.discard(ws)
-        state.ws_players.pop(ws, None)
-        if state.table_state in ("idle", "matchmaking"):
-            await _mm_remove_player(ws)
+        player_info = state.ws_players.pop(ws, {})
+        username = player_info.get("username", "")
+        is_active_in_room = (
+            state.matchmaking_room and
+            any(p["username"] == username and p["ws"] is ws for p in state.matchmaking_room.get("players", []))
+        )
+        if is_active_in_room:
+            if state.table_state in ("playing", "calibrating", "waiting_camera") and not state.match_over:
+                print(f"[MM] Player {username} disconnected during match -> forcing end")
+                await _force_end_match()
+            else:
+                print(f"[MM] Player {username} disconnected -> removing from room")
+                await _mm_remove_player(ws)
+        else:
+            print(f"[MM] Player {username} WS closed (already detached or not in room, ignoring)")
     return ws

@@ -229,10 +229,15 @@ function getWsBase() {
       <div>
         <div class="section-title">Calibration terrain</div>
         <div class="btn-row">
-          <button class="btn-red" id="btnCalibrate" onclick="triggerCalibration()" disabled>🎯 Calibrer</button>
+          <button class="btn-red" id="btnCalibrate" onclick="triggerCalibration()">🎯 Calibrer</button>
           <button class="btn-outline" id="btnReady" onclick="confirmCalibration()" style="display:none">✅ Prêt !</button>
           <button class="btn-outline" id="btnRetry" onclick="triggerCalibration()" style="display:none">🔄 Relancer</button>
         </div>
+      </div>
+
+      <div id="stopSection" style="display:none">
+        <div class="section-title">Match en cours</div>
+        <button class="btn-outline" id="btnStop" onclick="stopMatch()" style="border-color:#e50914;color:#e50914;">⏹ Arrêter le match</button>
       </div>
 
       <div id="replaySection" style="display:none">
@@ -297,7 +302,6 @@ function connectWs() {
   ws.onopen = () => { setStatus('Connecté', 'ok'); };
 
   ws.onclose = () => {
-    document.getElementById('btnCalibrate').disabled = true;
     document.getElementById('btnReady').style.display =
     document.getElementById('btnRetry').style.display = 'none';
     setStatus('Déconnecté');
@@ -311,12 +315,17 @@ function connectWs() {
       renderTeams(d.match);
       document.getElementById('metaMode').textContent = d.match.mode;
     }
+    if (d.type === 'table_status') {
+      const hasCamera = d.camera_pool && d.camera_pool.length > 0;
+      const activeState = ['calibrating', 'playing', 'waiting_camera'].includes(d.state);
+      if (activeState && (hasCamera || d.state !== 'waiting_camera')) {
+        if (d.state !== 'playing') setStatus('📱 Caméra prête');
+      }
+    }
     if (d.type === 'camera_ready' || d.type === 'camera_selected' || d.type === 'camera_reselected') {
-      document.getElementById('btnCalibrate').disabled = false;
       setStatus('📱 Caméra prête');
     }
     if (d.type === 'camera_resumed') {
-      document.getElementById('btnCalibrate').disabled = false;
       setStatus('▶ Match repris', 'ok');
     }
     if (d.type === 'calibration_preview') {
@@ -333,6 +342,7 @@ function connectWs() {
       document.getElementById('btnReady').style.display =
       document.getElementById('btnRetry').style.display = 'none';
       setStatus('🟢 Match en cours', 'ok');
+      document.getElementById('stopSection').style.display = 'block';
     }
     if (d.type === 'calibration_failed') {
       document.getElementById('previewCard').style.display = 'none';
@@ -349,9 +359,9 @@ function connectWs() {
       document.getElementById('scoreRed').textContent = d.score.red;
       document.getElementById('scoreBlue').textContent = d.score.blue;
       setStatus('🏁 Match terminé');
-      document.getElementById('btnCalibrate').disabled = true;
       document.getElementById('previewCard').style.display = 'none';
       document.getElementById('previewEmpty').style.display = 'none';
+      document.getElementById('stopSection').style.display = 'none';
       document.getElementById('replaySection').style.display = 'block';
     }
     if (d.type === 'elo_update') renderEloRow(d);
@@ -360,11 +370,17 @@ function connectWs() {
 
 function replayMatch() {
   document.getElementById('replaySection').style.display = 'none';
+  document.getElementById('stopSection').style.display = 'none';
   document.getElementById('eloRow').style.display = 'none';
   document.getElementById('scoreRed').textContent = '0';
   document.getElementById('scoreBlue').textContent = '0';
-  document.getElementById('btnCalibrate').disabled = false;
   triggerCalibration();
+}
+
+function stopMatch() {
+  if (!confirm('Arrêter le match en cours ? Le score actuel sera enregistré.')) return;
+  ws?.send(JSON.stringify({ type: 'force_end_match' }));
+  document.getElementById('stopSection').style.display = 'none';
 }
 
 function triggerCalibration() {
