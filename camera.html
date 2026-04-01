@@ -217,14 +217,14 @@ window.addEventListener('beforeunload',stop);
 async function start(){
   document.getElementById('btnStart').disabled=true;
   try{
-    // stream=await navigator.mediaDevices.getUserMedia({
-    //   video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},
-    //   audio:false
-    // });
-    // video.srcObject=stream;
-    video.src='/test.mp4'; video.loop=false; video.muted=true;
-    video.addEventListener('ended', () => { running=false; setStatus('Vidéo terminée'); });
-    await video.play();
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},
+      audio:false
+    });
+    video.srcObject=stream;
+    // video.src='/test.mp4'; video.loop=false; video.muted=true;
+    // video.addEventListener('ended', () => { running=false; setStatus('Vidéo terminée'); });
+    // await video.play();
 
     const user=getCurrentUser();
     const params=new URLSearchParams({

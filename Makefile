@@ -9,6 +9,7 @@ info:
 	@echo "📋 INSTALLATION (one time only) :"
 	@echo "   make install-docker    # Install Docker + restart terminal"
 	@echo "   make install-ngrok     # Install ngrok + add authtoken"
+	@echo "   make install-gcloud    # Install Google Cloud SDK"
 	@echo ""
 	@echo "🧪 LOCAL TESTING :"
 	@echo "   make test              # Build + run app -> http://localhost:$(HTTP_PORT)"
@@ -19,8 +20,9 @@ info:
 	@echo ""
 	@echo "☁️  GOOGLE CLOUD DEPLOYMENT :"
 	@echo "   1. Configure .env with the PROJECT_ID"
-	@echo "   2. make gcloud-auth    # Authenticate Google Cloud (once)"
-	@echo "   3. make deploy-gcloud  # Deploy -> Google displays final URL"
+	@echo "   2. make install-gcloud # Install Google Cloud SDK"
+	@echo "   3. make gcloud-auth    # Authenticate Google Cloud (once)"
+	@echo "   4. make deploy-gcloud  # Deploy -> Google displays final URL"
 	@echo ""
 	@echo "🧹 CLEANUP :"
 	@echo "   make clean"
@@ -44,6 +46,10 @@ install-ngrok:
 	&& sudo apt install ngrok
 	@echo "Run: ngrok config add-authtoken <token>"
 
+install-gcloud:
+	curl -sSL https://sdk.cloud.google.com | bash -s -- --disable-prompts
+	@echo "Run: source ~/.bashrc"
+
 build:
 	docker build -t $(IMAGE_NAME) .
 
@@ -53,9 +59,16 @@ run-local:
 tunnel:
 	ngrok http $(HTTP_PORT)
 
-gcloud-auth:
-	gcloud auth login
-	gcloud config set project $${PROJECT_ID}
+check-gcloud:
+	@export PATH="$$HOME/google-cloud-sdk/bin:$$PATH"; \
+	command -v gcloud >/dev/null 2>&1 || { \
+		echo "gcloud CLI not found. Run: make install-gcloud"; \
+		exit 127; \
+	}
+
+gcloud-auth: check-gcloud
+	PATH="$$HOME/google-cloud-sdk/bin:$$PATH" gcloud auth login
+	PATH="$$HOME/google-cloud-sdk/bin:$$PATH" gcloud config set project $${PROJECT_ID}
 
 configure-gcloud:
 	gcloud run services update $(IMAGE_NAME) \
@@ -67,8 +80,8 @@ configure-gcloud:
 		--no-cpu-throttling
 
 deploy-gcloud:
-	gcloud builds submit --tag gcr.io/$${PROJECT_ID}/$(IMAGE_NAME)
-	gcloud run deploy $(IMAGE_NAME) \
+	PATH="$$HOME/google-cloud-sdk/bin:$$PATH" gcloud builds submit --tag gcr.io/$${PROJECT_ID}/$(IMAGE_NAME)
+	PATH="$$HOME/google-cloud-sdk/bin:$$PATH" gcloud run deploy $(IMAGE_NAME) \
 		--image gcr.io/$${PROJECT_ID}/$(IMAGE_NAME) \
 		--platform managed \
 		--region europe-west1 \
@@ -78,7 +91,6 @@ deploy-gcloud:
 
 VIDEO  ?= test.mp4
 FRAMES ?= 100
-
 test-pipeline:
 	docker run --rm -v $(shell pwd):/app -w /app $(IMAGE_NAME) python3 test_pipeline.py $(VIDEO) $(FRAMES)
 
@@ -87,4 +99,4 @@ clean:
 	docker ps -aq --filter ancestor=$(IMAGE_NAME) | xargs -r docker rm || true
 	docker rmi $(IMAGE_NAME) || true
 
-.PHONY: info test install-docker install-ngrok build run-local tunnel gcloud-auth configure-gcloud deploy-gcloud test-pipeline clean
+.PHONY: info test install-docker install-ngrok install-gcloud build run-local tunnel check-gcloud gcloud-auth configure-gcloud deploy-gcloud test-pipeline clean
