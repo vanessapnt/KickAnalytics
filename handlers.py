@@ -3,7 +3,6 @@ import numpy as np
 import cv2
 from aiohttp import web, WSMsgType
 
-# Executor dédié pour l'inférence ONNX — 1 thread car ONNX n'est pas thread-safe
 _inference_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='onnx')
 
 from config import *
@@ -199,7 +198,7 @@ async def process_camera_message(ws, msg):
 
     if msg_type == "frame":
         if state.frame_queue.full():
-            return  # drop frame before decoding if queue is full
+            return
         image_b64 = data["image"]
         orig_w = data.get("frame_width")
         orig_h = data.get("frame_height")
@@ -234,13 +233,15 @@ async def process_camera_message(ws, msg):
 async def handle_camera(request):
     from matchmaking import camera_joined, camera_left
 
+    # no new in Python, just call the constructor to create the server ws
     ws = web.WebSocketResponse(max_msg_size=10*1024*1024)
+    # sends 101 OK UPGRADE http -> ws
     await ws.prepare(request)
 
+    state.cameras.add(ws) # WebSocketResponse object
+    
     username = request.rel_url.query.get("username", "inconnu")
     display_name = request.rel_url.query.get("display_name", username)
-
-    state.cameras.add(ws)
     await camera_joined(ws, username, display_name)
 
     try:
@@ -265,11 +266,9 @@ async def handle_controller(request):
     state.controllers.add(ws)
     from matchmaking import table_status_payload
     await ws.send_str(json.dumps(table_status_payload()))
-    # Envoyer camera_selected si une caméra est active ou si l'état indique qu'une caméra est attendue
     cam_ws = state.active_camera_ws
     cam_username = state.active_camera_username
     if cam_username and (cam_ws is None or cam_ws.closed):
-        # Caméra attendue mais pas encore connectée — signaler quand même
         await ws.send_str(json.dumps({
             "type": "camera_selected",
             "camera": {"username": cam_username, "display_name": cam_username},
@@ -291,13 +290,12 @@ async def handle_controller(request):
                 if msg_type == "trigger_calibration":
                     cam = state.active_camera_ws
                     if cam is None or cam.closed:
-                        # Fallback: prendre la première caméra du pool
                         cam = next((w for w in state.camera_pool if not w.closed), None)
                         if cam:
                             state.active_camera_ws = cam
                             state.active_camera_username = state.camera_pool[cam]["username"]
                     if cam and not cam.closed:
-                        state.match_over = False  # reset pour permettre le tracking après calibration
+                        state.match_over = False
                         await cam.send_str(json.dumps({"type": "start_calibration"}))
                         print(f"[CTRL] start_calibration sent to {state.active_camera_username}")
                     else:
@@ -349,7 +347,7 @@ async def handle_spectator(request):
     return ws
 
 async def handle_camera_end():
-    # Ne pas détruire matchmaking_room ici — _force_end_match(keep_room) la gère
+    state.active_camera_ws = None
     state.active_camera_username = None
     state.prevalidated_camera_username = None
     from matchmaking import broadcast_table_status

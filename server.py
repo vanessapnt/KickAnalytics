@@ -34,7 +34,6 @@ async def ws_router(request):
 
 async def main():
     import concurrent.futures
-    # 2 threads pour décodage/cv2, ONNX a son propre executor (2 threads internes) dans vision.py
     general_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix='cv2')
     asyncio.get_event_loop().set_default_executor(general_executor)
 

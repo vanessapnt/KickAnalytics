@@ -1096,7 +1096,6 @@ function renderTableStatus(d) {
 
 function renderCameraPool(d) {
   const rawPool = d.camera_pool || [];
-  // Dédupliquer par username (garde le dernier)
   const seen = new Set();
   const pool = rawPool.filter(cam => {
     if (seen.has(cam.username)) return false;
@@ -1116,7 +1115,6 @@ function renderCameraPool(d) {
   panel.style.display = 'block';
   hint.textContent = 'Sélectionne une caméra pour démarrer la calibration';
 
-  // Bouton "Je filme" toujours présent
   const filmBtn = `
     <div class="mm-player-row" style="border-top:1px solid var(--border);margin-top:6px;padding-top:10px;">
       <span class="mm-player-name" style="color:var(--muted);font-size:13px">Je filme et je joue</span>
@@ -1159,7 +1157,7 @@ function startFilming(asPlayer = false) {
   if (!authGuard()) return;
 
   if (asPlayer) {
-    // Joueur qui filme depuis la room : redirige directement, garde la room intacte
+    sessionStorage.setItem('ka_allow_camera_page', '1');
     window.location.href = '/camera.html';
     return;
   }
@@ -1172,7 +1170,6 @@ function startFilming(asPlayer = false) {
   document.getElementById('modeRow').style.display = 'none';
 
   if (false) {
-    // unreachable, kept for structure
   } else {
     document.getElementById('filmingPanel').querySelector('.mm-hint').textContent =
       'En attente de validation par le controller…';
@@ -1258,6 +1255,7 @@ function lobbyConnect(onOpenCb) {
       document.getElementById('cameraPoolPanel').style.display = 'none';
     }
     if (d.type === 'camera_validated' && isFilming && myRole === 'camera') {
+      sessionStorage.setItem('ka_allow_camera_page', '1');
       window.location.href = '/camera.html';
     }
     if (d.type === 'elo_update' && d.new_elos && currentUser) {
@@ -1353,7 +1351,6 @@ function mmLeave() {
 }
 
 function showSection(id) {
-  // Si le joueur est controller ET match en cours → arrêt du match en quittant "jouer"
   if (id !== 'jouer' && myRole === 'controller' && lobbyWs && lobbyWs.readyState === WebSocket.OPEN) {
     lobbyWs.send(JSON.stringify({ type: 'mm_leave_match' }));
     myRole = null;
@@ -1371,7 +1368,6 @@ function showSection(id) {
   if (id === 'stats') loadLeaderboard();
   if (id === 'jouer') {
     authRenderUserBar();
-    // Re-render l'UI depuis le dernier état connu si le lobbyWs est toujours ouvert
     if (lobbyWs && lobbyWs.readyState === WebSocket.OPEN && lastTableStatusData) {
       renderTableStatus(lastTableStatusData);
       renderMmPanel(lastTableStatusData);

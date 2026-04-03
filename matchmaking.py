@@ -28,7 +28,7 @@ def table_status_payload():
     }
 
 async def broadcast_table_status():
-    payload = table_status_payload()
+    payload = table_status_payload() # state at the moment for UI with the new camera
     await broadcast(state.spectators, payload)
     if state.matchmaking_room:
         for p in state.matchmaking_room["players"]:
@@ -91,14 +91,13 @@ async def _force_end_match(keep_room=False):
 
     state.match_over = True
     state.active_camera_ws = None
+    state.active_camera_username = None
     state.prevalidated_camera_username = None
-    state.camera_pool.clear()
 
     if keep_room and state.matchmaking_room:
         state.table_state = "waiting_camera"
     else:
         state.table_state = "idle"
-        state.active_camera_username = None
         state.matchmaking_room = None
 
     stats = compute_stats()
