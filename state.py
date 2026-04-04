@@ -15,17 +15,16 @@ current_match: dict = {
     "blue": [],
     "roles": {"red": [], "blue": []},
 }
-cameras: set = set()
+cameras: set = set() # set of all the camera websocket connections (validated or not)
 controllers: set = set()
 spectators: set = set()
 
-camera_pool: dict = {}
+camera_pool: dict = {} # for ux purposes and selection (only 3)
 
-active_camera_ws = None
-active_camera_username = None
-prevalidated_camera_username = None
+validated_camera_ws = None # only one, if closed we stop the game
+validated_camera_username = None
 
-table_state: str = "idle"
+table_state: str = "free"
 matchmaking_room: dict = None
 ws_players: dict = {}
 

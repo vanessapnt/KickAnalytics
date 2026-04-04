@@ -3,6 +3,7 @@ import bcrypt
 from aiohttp import web
 
 from db import get_pool
+from auth_session import create_session_token, set_session_cookie, clear_session_cookie
 
 def _json(data, status=200):
     return web.Response(status=status, text=json.dumps(data), content_type="application/json")
@@ -53,7 +54,10 @@ async def api_auth_register(request):
             row = await conn.fetchrow(
                 "INSERT INTO players (username, display_name, password_hash) VALUES ($1, $2, $3) RETURNING id, username, display_name, elo",
                 username, display_name, password_hash)
-        return _json({"id": str(row["id"]), "username": row["username"], "display_name": row["display_name"], "elo": row["elo"]}, 201)
+        response = _json({"id": str(row["id"]), "username": row["username"], "display_name": row["display_name"], "elo": row["elo"]}, 201)
+        token = create_session_token(user_id=str(row["id"]), username=row["username"], display_name=row["display_name"])
+        set_session_cookie(response, token, secure=(request.scheme == "https"))
+        return response
     except Exception as e:
         if "unique" in str(e).lower():
             return _json({"error": "This username is already taken"}, 409)
@@ -76,7 +80,16 @@ async def api_auth_login(request):
         return _json({"error": "Username not found"}, 401)
     if not bcrypt.checkpw(password.encode(), row["password_hash"].encode()):
         return _json({"error": "Incorrect password"}, 401)
-    return _json({"id": str(row["id"]), "username": row["username"], "display_name": row["display_name"], "elo": row["elo"]})
+    response = _json({"id": str(row["id"]), "username": row["username"], "display_name": row["display_name"], "elo": row["elo"]})
+    token = create_session_token(user_id=str(row["id"]), username=row["username"], display_name=row["display_name"])
+    set_session_cookie(response, token, secure=(request.scheme == "https"))
+    return response
+
+
+async def api_auth_logout(request):
+    response = web.Response(status=204)
+    clear_session_cookie(response, secure=(request.scheme == "https"))
+    return response
 
 async def api_leaderboard(request):
     pool = get_pool()

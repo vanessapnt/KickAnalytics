@@ -10,6 +10,7 @@ from game import game, apply_homography, check_goal, store_pending_calibration, 
 from vision import detect_ball, detect_field_corners
 from db import save_match, compute_elo_deltas, get_pool
 import state
+from auth_session import get_session_user_from_request
 
 async def broadcast(targets, msg):
     data = json.dumps(msg)
@@ -233,15 +234,23 @@ async def process_camera_message(ws, msg):
 async def handle_camera(request):
     from matchmaking import camera_joined, camera_left
 
+    session_user = get_session_user_from_request(request)
+    if not session_user:
+        return web.json_response({"error": "Unauthorized"}, status=401)
+
+    username = (session_user.get("username") or "inconnu").strip().lower()
+
+    if state.validated_camera_username != username:
+        return web.json_response({"error": "Not the active camera"}, status=403)
+
     # no new in Python, just call the constructor to create the server ws
     ws = web.WebSocketResponse(max_msg_size=10*1024*1024)
     # sends 101 OK UPGRADE http -> ws
     await ws.prepare(request)
 
     state.cameras.add(ws) # WebSocketResponse object
-    
-    username = request.rel_url.query.get("username", "inconnu")
-    display_name = request.rel_url.query.get("display_name", username)
+
+    display_name = (session_user.get("display_name") or username).strip() or username
     await camera_joined(ws, username, display_name)
 
     try:
@@ -261,13 +270,17 @@ async def handle_camera(request):
     return ws
 
 async def handle_controller(request):
+    session_user = get_session_user_from_request(request)
+    if not session_user:
+        return web.json_response({"error": "Unauthorized"}, status=401)
+
     ws = web.WebSocketResponse()
     await ws.prepare(request)
     state.controllers.add(ws)
     from matchmaking import table_status_payload
     await ws.send_str(json.dumps(table_status_payload()))
-    cam_ws = state.active_camera_ws
-    cam_username = state.active_camera_username
+    cam_ws = state.validated_camera_ws
+    cam_username = state.validated_camera_username
     if cam_username and (cam_ws is None or cam_ws.closed):
         await ws.send_str(json.dumps({
             "type": "camera_selected",
@@ -288,16 +301,16 @@ async def handle_controller(request):
                 data = json.loads(msg.data)
                 msg_type = data.get("type")
                 if msg_type == "trigger_calibration":
-                    cam = state.active_camera_ws
+                    cam = state.validated_camera_ws
                     if cam is None or cam.closed:
                         cam = next((w for w in state.camera_pool if not w.closed), None)
                         if cam:
-                            state.active_camera_ws = cam
-                            state.active_camera_username = state.camera_pool[cam]["username"]
+                            state.validated_camera_ws = cam
+                            state.validated_camera_username = state.camera_pool[cam]["username"]
                     if cam and not cam.closed:
                         state.match_over = False
                         await cam.send_str(json.dumps({"type": "start_calibration"}))
-                        print(f"[CTRL] start_calibration sent to {state.active_camera_username}")
+                        print(f"[CTRL] start_calibration sent to {state.validated_camera_username}")
                     else:
                         print("[CTRL] trigger_calibration: no camera available")
                 elif msg_type == "set_players":
@@ -322,8 +335,8 @@ async def handle_controller(request):
                         game.score["red"] = 0
                         game.score["blue"] = 0
                         game.ball_in_goal = False
-                        if state.active_camera_ws and not state.active_camera_ws.closed:
-                            await state.active_camera_ws.send_str(json.dumps({"type": "calibration_ok"}))
+                        if state.validated_camera_ws and not state.validated_camera_ws.closed:
+                            await state.validated_camera_ws.send_str(json.dumps({"type": "calibration_ok"}))
                         await broadcast(state.controllers, {"type": "calibration_ok"})
                         await broadcast(state.spectators, {"type": "calibration_ok"})
                     else:
@@ -335,6 +348,11 @@ async def handle_controller(request):
     return ws
 
 async def handle_spectator(request):
+    if not SPECTATOR_PUBLIC:
+        session_user = get_session_user_from_request(request)
+        if not session_user:
+            return web.json_response({"error": "Unauthorized"}, status=401)
+
     ws = web.WebSocketResponse()
     await ws.prepare(request)
     state.spectators.add(ws)
@@ -347,8 +365,7 @@ async def handle_spectator(request):
     return ws
 
 async def handle_camera_end():
-    state.active_camera_ws = None
-    state.active_camera_username = None
-    state.prevalidated_camera_username = None
+    state.validated_camera_ws = None
+    state.validated_camera_username = None
     from matchmaking import broadcast_table_status
     await broadcast_table_status()

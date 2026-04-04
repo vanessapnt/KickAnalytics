@@ -172,32 +172,10 @@ function getWsBase() {
 <video id="video" autoplay playsinline muted></video>
 
 <script>
-const allowCameraPage = sessionStorage.getItem('ka_allow_camera_page') === '1';
-if (!allowCameraPage) {
-  window.location.replace('/');
-}
-
-function setCameraPageAccess(allowed) {
-  sessionStorage.setItem('ka_allow_camera_page', allowed ? '1' : '0');
-}
-
 let ws = null, running = false, stream = null, calibrated = false, startInProgress = false;
 const video = document.getElementById('video');
 const preview = document.getElementById('preview');
 const pCtx=preview.getContext('2d');
-const backHomeLink = document.getElementById('backHomeLink');
-
-backHomeLink?.addEventListener('click', () => {
-  setCameraPageAccess(false);
-});
-
-function getCurrentUser() {
-  try {
-    return JSON.parse(localStorage.getItem('ka_user')) || {};
-  } catch (e) {
-    return {};
-  }
-}
 
 function setStatus(message, type = '') {
   document.getElementById('statusText').textContent = message;
@@ -288,7 +266,7 @@ function startTracking(){
         frame_height: video.videoHeight
       }));
     }
-    trackingLoop = setTimeout(() => requestAnimationFrame(loop), 50);
+    trackingLoop = setTimeout(() => requestAnimationFrame(loop), 50); // 20 fps
   }
   requestAnimationFrame(loop);
 }
@@ -308,21 +286,31 @@ async function start() {
     // video.addEventListener('ended', () => { running=false; setStatus('Vidéo terminée'); });
     // await video.play();
 
-    const user = getCurrentUser();
-    const params = new URLSearchParams({
-      username: user.username || 'inconnu',
-      display_name: user.display_name || 'Inconnu',
-    });
-    const wsUrl = `${getWsBase()}/camera?${params}`;
-    // wss://kickanalytics.live/ws/camera?username=alice&display_name=Alice
+    const wsUrl = `${getWsBase()}/camera`;
     
     function setupSocket() {
+      let opened = false;
       // nav automatically sends handshake request to the wsurl
       ws = new WebSocket(wsUrl);
       
       // onopen triggered when 101 OK UPGRADE received from sever (ws connection established)
-      ws.onopen = () => { setStatus('Connectée', 'ok'); setTerrain('En attente calibration...'); };
-      ws.onclose = () => { setStatus('Reconnexion...'); if (running) setTimeout(setupSocket, 2000); };
+      ws.onopen = () => {
+        opened = true;
+        setStatus('Connectée', 'ok');
+        setTerrain('En attente calibration...');
+      };
+      ws.onclose = () => {
+        if (!opened) {
+          running = false;
+          setStatus('Connexion refusée (auth requise)', 'err');
+          document.getElementById('btnStart').disabled = false;
+          document.getElementById('btnStart').style.display = 'block';
+          document.getElementById('btnStop').style.display = 'none';
+          return;
+        }
+        setStatus('Reconnexion...');
+        if (running) setTimeout(setupSocket, 2000);
+      };
       ws.onmessage = (e) => {
         const d = JSON.parse(e.data);
         if (d.type === 'start_calibration') calibrate();
@@ -354,11 +342,11 @@ async function start() {
 }
 
 function stop() {
-  running = calibrated = false;
+  running = calibrated = false; // no automatic reconnection
   startInProgress = false;
-  if (trackingLoop !== null) { clearTimeout(trackingLoop); trackingLoop = null; }
+  if (trackingLoop !== null) { clearTimeout(trackingLoop); trackingLoop = null; } // stops sending frames for tracking
   showPreview(null);
-  stream?.getTracks().forEach(t => t.stop());
+  stream?.getTracks().forEach(t => t.stop()); // stops camera
   stream = null;
   ws?.close();
   ws = null;

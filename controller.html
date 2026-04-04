@@ -297,11 +297,21 @@ function renderEloRow(d) {
 
 function connectWs() {
   document.getElementById('btnConnect').disabled = true;
+  let opened = false;
   ws = new WebSocket(`${getWsBase()}/controller`);
 
-  ws.onopen = () => { setStatus('Connecté', 'ok'); };
+  ws.onopen = () => {
+    opened = true;
+    setStatus('Connecté', 'ok');
+  };
 
   ws.onclose = () => {
+    if (!opened) {
+      setStatus('Connexion refusée (auth requise)', 'err');
+      document.getElementById('btnConnect').disabled = false;
+      setTimeout(() => { window.location.href = '/'; }, 900);
+      return;
+    }
     document.getElementById('btnReady').style.display =
     document.getElementById('btnRetry').style.display = 'none';
     setStatus('Déconnecté');

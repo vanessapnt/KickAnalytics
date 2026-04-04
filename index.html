@@ -400,7 +400,7 @@ footer button .icon { font-size: 20px; }
   margin-left:auto; flex-shrink:0; border-radius:20px; padding:5px 12px;
   font-size:11px; font-weight:800; letter-spacing:0.3px;
 }
-.table-status-pill.idle        { background:#e8f5e9; color:#2e7d32; }
+.table-status-pill.free        { background:#e8f5e9; color:#2e7d32; }
 .table-status-pill.matchmaking { background:#fff8e1; color:#f57f17; }
 .table-status-pill.waiting_camera { background:#fff3e0; color:#e65100; }
 .table-status-pill.calibrating { background:#e3f2fd; color:#1565c0; }
@@ -911,9 +911,17 @@ drawField();
 
 function connect() {
   if (ws) return;
+  let opened = false;
   ws = new WebSocket(`${getWsBase()}/spectator`);
-  ws.onopen = () => setStatus('Connecté','ok');
-  ws.onclose = () => { ws=null; setStatus('Déconnecté'); };
+  ws.onopen = () => { opened = true; setStatus('Connecté','ok'); };
+  ws.onclose = () => {
+    ws = null;
+    if (!opened) {
+      setStatus('Connexion refusée (auth requise)','err');
+      return;
+    }
+    setStatus('Déconnecté');
+  };
   ws.onmessage = (e) => {
     const d = JSON.parse(e.data);
     if(d.type==='table_status') { renderTableStatus(d); return; }
@@ -1036,6 +1044,7 @@ async function authSubmit() {
 }
 
 function authLogout() {
+  fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
   currentUser = null;
   localStorage.removeItem('ka_user');
   authRenderUserBar();
@@ -1073,7 +1082,7 @@ function renderTableStatus(d) {
   const scoreRow = document.getElementById('tableScoreRow');
 
   const labels = {
-    idle:           ['Libre',           '🟢 Libre',          'Clique pour jouer'],
+    free:           ['Libre',           '🟢 Libre',          'Clique pour jouer'],
     matchmaking:    ['En attente',      '🟡 Salle ouverte',  'En cours de matchmaking'],
     waiting_camera: ['Cherche caméra',  '🟠 Cherche caméra', 'En attente d\'une caméra'],
     calibrating:    ['Calibration…',    '🔵 Calibration',    'Calibration du terrain en cours'],
@@ -1084,7 +1093,7 @@ function renderTableStatus(d) {
   pill.textContent = pillLabel;
   pill.className = 'table-status-pill ' + d.state;
   subtitle.textContent = subLabel;
-  card.classList.toggle('occupied', d.state !== 'idle');
+  card.classList.toggle('occupied', d.state !== 'free');
   scoreRow.style.display = d.state === 'playing' ? 'flex' : 'none';
 
   renderCameraPool(d);
@@ -1148,6 +1157,7 @@ function selectCamera(username) {
 }
 
 let lobbyWs = null;
+let pendingLobbyOpenCallbacks = [];
 let mmMode = '1v1';
 let mmReady_ = false;
 let isFilming = false;
@@ -1157,7 +1167,6 @@ function startFilming(asPlayer = false) {
   if (!authGuard()) return;
 
   if (asPlayer) {
-    sessionStorage.setItem('ka_allow_camera_page', '1');
     window.location.href = '/camera.html';
     return;
   }
@@ -1169,21 +1178,19 @@ function startFilming(asPlayer = false) {
   document.getElementById('btnMatchmaking').style.display = 'none';
   document.getElementById('modeRow').style.display = 'none';
 
-  if (false) {
-  } else {
-    document.getElementById('filmingPanel').querySelector('.mm-hint').textContent =
-      'En attente de validation par le controller…';
-    lobbyConnect(() => {
-      if (lobbyWs && lobbyWs.readyState === WebSocket.OPEN) {
-        const user = currentUser || {};
-        lobbyWs.send(JSON.stringify({
-          type:         'lobby_film',
-          username:     user.username     || 'inconnu',
-          display_name: user.display_name || 'Inconnu',
-        }));
-      }
-    });
-  }
+  document.getElementById('filmingPanel').querySelector('.mm-hint').textContent =
+    'En attente de validation par le controller…';
+  ensureLobbyConnected(() => {
+    // this func will be called when ws opens
+    if (lobbyWs && lobbyWs.readyState === WebSocket.OPEN) {
+      const user = currentUser || {};
+      lobbyWs.send(JSON.stringify({
+        type: 'lobby_film',
+        username: user.username || 'inconnu',
+        display_name: user.display_name || 'Inconnu',
+      }));
+    }
+  });
 }
 
 function stopFilming() {
@@ -1199,7 +1206,7 @@ function startMatchmaking() {
   if (!authGuard()) return;
   document.getElementById('btnMatchmaking').disabled = true;
   document.getElementById('btnMatchmaking').textContent = 'Recherche...';
-  lobbyConnect(() => {
+  ensureLobbyConnected(() => {
     lobbyWs.send(JSON.stringify({
       type:         'mm_join',
       username:     currentUser.username,
@@ -1216,11 +1223,42 @@ function mcSelect(mode) {
   document.getElementById('mcBtn2v2').classList.toggle('active', mode === '2v2');
 }
 
-function lobbyConnect(onOpenCb) {
-  if (lobbyWs && lobbyWs.readyState === WebSocket.OPEN) { onOpenCb(); return; }
+function ensureLobbyConnected(onLobbyOpen) {
+  if (lobbyWs && lobbyWs.readyState === WebSocket.OPEN) {
+    onLobbyOpen();
+    return;
+  }
+
+  if (lobbyWs && lobbyWs.readyState === WebSocket.CONNECTING) {
+    pendingLobbyOpenCallbacks.push(onLobbyOpen);
+    return;
+  }
+
+  pendingLobbyOpenCallbacks.push(onLobbyOpen);
+  let opened = false;
   lobbyWs = new WebSocket(`${getWsBase()}/lobby`);
-  lobbyWs.onopen = () => { onOpenCb(); };
-  lobbyWs.onclose = () => { lobbyWs = null; };
+  lobbyWs.onopen = () => {
+    opened = true;
+    const callbacks = pendingLobbyOpenCallbacks;
+    pendingLobbyOpenCallbacks = [];
+    callbacks.forEach(cb => cb());
+  };
+  lobbyWs.onclose = () => {
+    if (!opened) {
+      alert('Session expirée ou non authentifiée. Reconnecte-toi pour jouer.');
+      const btn = document.getElementById('btnMatchmaking');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '🎮 Jouer';
+      }
+      document.getElementById('filmingPanel').style.display = 'none';
+      document.getElementById('btnFilmer').style.display = 'block';
+      document.getElementById('btnMatchmaking').style.display = 'block';
+      document.getElementById('modeRow').style.display = 'flex';
+    }
+    lobbyWs = null;
+    pendingLobbyOpenCallbacks = [];
+  };
   lobbyWs.onmessage = (e) => {
     let d;
     try { d = JSON.parse(e.data); }
@@ -1229,7 +1267,7 @@ function lobbyConnect(onOpenCb) {
     if (d.type === 'table_status') {
       renderTableStatus(d);
       renderMmPanel(d);
-      if (d.state === 'idle' || d.state === 'matchmaking') {
+      if (d.state === 'free' || d.state === 'matchmaking') {
         const btn = document.getElementById('btnMatchmaking');
         if (btn) { btn.disabled = false; btn.textContent = '🎮 Jouer'; }
       }
@@ -1255,7 +1293,6 @@ function lobbyConnect(onOpenCb) {
       document.getElementById('cameraPoolPanel').style.display = 'none';
     }
     if (d.type === 'camera_validated' && isFilming && myRole === 'camera') {
-      sessionStorage.setItem('ka_allow_camera_page', '1');
       window.location.href = '/camera.html';
     }
     if (d.type === 'elo_update' && d.new_elos && currentUser) {
