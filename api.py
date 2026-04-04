@@ -2,11 +2,64 @@ import json
 import bcrypt
 from aiohttp import web
 
+import state
 from db import get_pool
-from auth_session import create_session_token, set_session_cookie, clear_session_cookie
+from auth_session import create_session_token, set_session_cookie, clear_session_cookie, get_session_user_from_request
+from config import ENABLE_DEBUG_STATE_DUMP
 
 def _json(data, status=200):
     return web.Response(status=status, text=json.dumps(data), content_type="application/json")
+
+
+def _safe_username_from_ws(ws):
+    info = state.camera_pool.get(ws)
+    if info:
+        return info.get("username")
+    player = state.ws_players.get(ws)
+    if player:
+        return player.get("username")
+    return None
+
+
+async def api_debug_dump_sets(request):
+    if not ENABLE_DEBUG_STATE_DUMP:
+        return _json({"error": "Debug state dump is disabled"}, 403)
+
+    session_user = get_session_user_from_request(request)
+    if not session_user:
+        return _json({"error": "Unauthorized"}, 401)
+
+    cameras_usernames = sorted({u for u in (_safe_username_from_ws(ws) for ws in state.cameras) if u})
+    spectators_usernames = sorted({u for u in (_safe_username_from_ws(ws) for ws in state.spectators) if u})
+    controllers_usernames = sorted({u for u in (_safe_username_from_ws(ws) for ws in state.controllers) if u})
+    camera_pool_usernames = sorted({info.get("username") for info in state.camera_pool.values() if info.get("username")})
+    ws_players_usernames = sorted({info.get("username") for info in state.ws_players.values() if info.get("username")})
+
+    payload = {
+        "requested_by": (session_user.get("username") or "").strip().lower(),
+        "table_state": state.table_state,
+        "match_over": bool(state.match_over),
+        "match_paused": bool(state.match_paused),
+        "counts": {
+            "cameras": len(state.cameras),
+            "camera_pool": len(state.camera_pool),
+            "controllers": len(state.controllers),
+            "spectators": len(state.spectators),
+            "ws_players": len(state.ws_players),
+        },
+        "camera": {
+            "validated_camera_username": state.validated_camera_username,
+            "validated_camera_ws_open": bool(state.validated_camera_ws and not state.validated_camera_ws.closed),
+            "camera_pool_usernames": camera_pool_usernames,
+            "cameras_usernames": cameras_usernames,
+        },
+        "controllers_usernames": controllers_usernames,
+        "spectators_usernames": spectators_usernames,
+        "ws_players_usernames": ws_players_usernames,
+    }
+
+    print("[DEBUG][STATE_DUMP]", json.dumps(payload, ensure_ascii=False))
+    return _json(payload)
 
 async def api_players(request):
     pool = get_pool()

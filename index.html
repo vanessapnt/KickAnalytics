@@ -1182,6 +1182,7 @@ function startFilming(asPlayer = false) {
     'En attente de validation par le controller…';
   ensureLobbyConnected(() => {
     // this func will be called when ws opens
+    if (!isFilming || myRole !== 'camera') return;
     if (lobbyWs && lobbyWs.readyState === WebSocket.OPEN) {
       const user = currentUser || {};
       lobbyWs.send(JSON.stringify({
@@ -1194,12 +1195,19 @@ function startFilming(asPlayer = false) {
 }
 
 function stopFilming() {
+  if (lobbyWs && lobbyWs.readyState === WebSocket.OPEN) {
+    lobbyWs.send(JSON.stringify({ type: 'lobby_stop_film' }));
+  }
+
   isFilming = false;
   myRole = null;
   document.getElementById('filmingPanel').style.display = 'none';
   document.getElementById('btnFilmer').style.display = 'block';
   document.getElementById('btnMatchmaking').style.display = 'block';
   document.getElementById('modeRow').style.display = 'flex';
+
+  // Leave lobby WS too, so this client exits spectators/ws_players as well.
+  lobbyClose();
 }
 
 function startMatchmaking() {
@@ -1509,6 +1517,24 @@ async function loadProfileStats() {
     body.innerHTML = `<div class="profile-empty">Impossible de charger les stats.<br>Vérifie ta connexion.</div>`;
   }
 }
+
+async function dumpSets() {
+  try {
+    const res = await fetch('/api/debug/dump-sets', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      console.error('[dumpSets] error', data);
+      return data;
+    }
+    console.log('[dumpSets] state snapshot', data);
+    return data;
+  } catch (err) {
+    console.error('[dumpSets] network error', err);
+    return null;
+  }
+}
+
+window.dumpSets = dumpSets;
 
 document.addEventListener('DOMContentLoaded', () => {
   authInit();

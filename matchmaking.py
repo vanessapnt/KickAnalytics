@@ -318,6 +318,12 @@ async def handle_lobby(request):
             elif raw.type in (WSMsgType.ERROR, WSMsgType.CLOSE):
                 break
     finally:
+        # If the lobby WS closes before lobby_stop_film is processed,
+        # force camera cleanup here to avoid stale camera_pool/cameras entries.
+        if ws in state.cameras or ws in state.camera_pool:
+            state.cameras.discard(ws)
+            await camera_left(ws)
+
         state.spectators.discard(ws)
         player_info = state.ws_players.pop(ws, {})
         username = player_info.get("username", "")

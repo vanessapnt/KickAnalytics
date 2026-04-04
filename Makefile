@@ -27,7 +27,8 @@ info:
 	@echo "🧹 CLEANUP :"
 	@echo "   make clean"
 
-test: build run-local
+test: build
+	ENV=development $(MAKE) run-local
 
 install-docker:
 	sudo apt update

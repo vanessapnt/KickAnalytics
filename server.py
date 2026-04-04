@@ -11,7 +11,7 @@ from auth_session import get_session_user_from_request
 from api import (
     api_players, api_players_create,
     api_auth_register, api_auth_login, api_auth_logout,
-    api_leaderboard, api_player_stats,
+    api_leaderboard, api_player_stats, api_debug_dump_sets,
 )
 
 STATIC_ROOT = Path(__file__).parent
@@ -58,6 +58,7 @@ async def main():
     app.router.add_route("POST", "/api/auth/register", api_auth_register)
     app.router.add_route("POST", "/api/auth/login", api_auth_login)
     app.router.add_route("POST", "/api/auth/logout", api_auth_logout)
+    app.router.add_route("POST", "/api/debug/dump-sets", api_debug_dump_sets)
     app.router.add_route("GET", "/api/players", api_players)
     app.router.add_route("POST", "/api/players", api_players_create)
     app.router.add_route("GET", "/api/leaderboard", api_leaderboard)
