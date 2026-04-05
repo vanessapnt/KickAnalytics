@@ -1156,6 +1156,11 @@ function selectCamera(username) {
   lobbyWs.send(JSON.stringify({ type: 'select_camera', username }));
 }
 
+function kickCamera(username) {
+  if (!lobbyWs || lobbyWs.readyState !== WebSocket.OPEN) return;
+  lobbyWs.send(JSON.stringify({ type: 'kick_camera', username }));
+}
+
 let lobbyWs = null;
 let pendingLobbyOpenCallbacks = [];
 let mmMode = '1v1';
