@@ -57,6 +57,17 @@ async def camera_joined(ws, username, display_name):
         print(f"[CAM POOL] {display_name} player-camera -> auto validation")
         return
 
+    # If match is paused and same camera reconnects, auto-resume
+    if state.match_paused and username == state.validated_camera_username and state.table_state == "playing":
+        state.camera_pool[ws] = {"username": username, "display_name": display_name}
+        state.validated_camera_ws = ws
+        state.match_paused = False
+        await broadcast(state.spectators, {"type": "camera_resumed"})
+        await broadcast(state.controllers, {"type": "camera_resumed"})
+        await broadcast_table_status()
+        print(f"[CAM POOL] {display_name} reconnected -> match resumed")
+        return
+
     if len(state.camera_pool) >= CAMERA_POOL_MAX:
         await ws.send_str(json.dumps({
             "type": "camera_pool_full",
@@ -104,8 +115,10 @@ async def camera_left(ws):
     if ws is state.validated_camera_ws:
         state.validated_camera_ws = None
         if not state.match_over and state.table_state in ("playing", "calibrating"):
-            print("[CAM POOL] Active camera disconnected -> forcing match end")
-            await _force_end_match(keep_room=True)
+            print("[CAM POOL] Active camera disconnected -> pausing match")
+            state.match_paused = True
+            await broadcast(state.spectators, {"type": "match_paused", "reason": "camera_disconnected"})
+            await broadcast(state.controllers, {"type": "match_paused", "reason": "camera_disconnected"})
         else:
             print("[CAM POOL] Active camera disconnected but match already over, ignoring")
         await broadcast_table_status()
@@ -115,6 +128,13 @@ async def camera_left(ws):
 
 
 async def select_camera(controller_ws, camera_username):
+    # Cannot change camera while match is paused
+    if state.match_paused:
+        await controller_ws.send_str(json.dumps({
+            "type": "error", "error": "Cannot change camera while match is paused. Waiting for camera to reconnect..."
+        }))
+        return
+
     target_ws = next(
         (ws for ws, info in state.camera_pool.items()
          if info["username"] == camera_username),
@@ -319,7 +339,7 @@ async def handle_lobby(request):
                 break
     finally:
         # If the lobby WS closes before lobby_stop_film is processed,
-        # force camera cleanup here to avoid stale camera_pool/cameras entries.
+        # force camera cleanup here to avoid stale camera_pool/cameras entries
         if ws in state.cameras or ws in state.camera_pool:
             state.cameras.discard(ws)
             await camera_left(ws)
