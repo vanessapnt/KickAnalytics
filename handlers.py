@@ -274,7 +274,8 @@ async def handle_controller(request):
     if not session_user:
         return web.json_response({"error": "Unauthorized"}, status=401)
 
-    ws = web.WebSocketResponse()
+    # Keep controller WS alive through idle phases (no user input during match).
+    ws = web.WebSocketResponse(heartbeat=20) # every 20 sec
     await ws.prepare(request)
     state.controllers.add(ws)
     from matchmaking import table_status_payload

@@ -55,7 +55,7 @@ build:
 	docker build -t $(IMAGE_NAME) .
 
 run-local:
-	docker run -p $(HTTP_PORT):8080 --memory=2g --env-file .env $(IMAGE_NAME)
+	docker run -p $(HTTP_PORT):8080 --memory=2g --env-file .env -e ENV=$${ENV} $(IMAGE_NAME)
 
 tunnel:
 	ngrok http $(HTTP_PORT)
