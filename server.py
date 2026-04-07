@@ -17,10 +17,20 @@ from api import (
 STATIC_ROOT = Path(__file__).parent
 PUBLIC_HTML_PATHS = {"/", "/index.html"}
 
+def _page_access_cookie_for(path: str):
+    if path.endswith("controller.html"):
+        return "controller"
+    if path.endswith("camera.html"):
+        return "camera"
+    return None
+
 async def http_file_handler(request):
     request_path = request.path
     if request_path.endswith(".html") and request_path not in PUBLIC_HTML_PATHS:
         if not get_session_user_from_request(request):
+            raise web.HTTPFound("/")
+        expected_cookie = _page_access_cookie_for(request_path)
+        if expected_cookie and request.cookies.get("ka_page_access") != expected_cookie:
             raise web.HTTPFound("/")
 
     path = request_path if request_path != "/" else "/index.html"
@@ -30,7 +40,10 @@ async def http_file_handler(request):
     mime, _ = mimetypes.guess_type(str(file_path))
     loop = asyncio.get_event_loop()
     data = await loop.run_in_executor(None, file_path.read_bytes)
-    return web.Response(body=data, content_type=mime or "application/octet-stream")
+    response = web.Response(body=data, content_type=mime or "application/octet-stream")
+    if request_path.endswith(".html") and request_path not in PUBLIC_HTML_PATHS:
+        response.del_cookie("ka_page_access")
+    return response
 
 async def ws_router(request):
     path = request.path

@@ -593,6 +593,10 @@ function getWsBase() {
   const port = window.location.port ? `:${window.location.port}` : '';
   return `${proto}://${window.location.hostname}${port}/ws`;
 }
+
+function grantPageAccess(page) {
+  document.cookie = `ka_page_access=${page}; Path=/; SameSite=Lax`;
+}
 </script>
 </head>
 <body>
@@ -1172,6 +1176,7 @@ function startFilming(asPlayer = false) {
   if (!authGuard()) return;
 
   if (asPlayer) {
+    grantPageAccess('camera');
     window.location.href = '/camera.html';
     return;
   }
@@ -1388,6 +1393,7 @@ function openController() {
   if (lobbyWs && lobbyWs.readyState === WebSocket.OPEN) {
     lobbyWs.send(JSON.stringify({ type: 'mm_become_controller' }));
   }
+  grantPageAccess('controller');
   window.location.href = '/controller.html';
 }
 
