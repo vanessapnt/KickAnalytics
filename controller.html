@@ -174,7 +174,7 @@ function getWsBase() {
 
 <header>
   <div class="logo">KickAnalytics</div>
-  <a href="/" class="back-link">Retour</a>
+  <a href="/" class="back-link" onclick="leaveController(event)">Retour</a>
 </header>
 
 <div class="page-content">
@@ -296,6 +296,9 @@ function renderEloRow(d) {
 }
 
 function connectWs() {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
   document.getElementById('btnConnect').disabled = true;
   let opened = false;
   ws = new WebSocket(`${getWsBase()}/controller`);
@@ -410,6 +413,25 @@ function confirmCalibration() {
   document.getElementById('btnRetry').style.display = 'none';
   setStatus('🟢 Match en cours', 'ok');
 }
+
+function leaveController(event) {
+  if (event) event.preventDefault();
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    try {
+      ws.send(JSON.stringify({ type: 'mm_leave_match' }));
+    } catch (err) {
+      console.warn('[CTRL] leave send failed', err);
+    }
+    try { ws.close(); } catch (_) {}
+    setTimeout(() => { window.location.href = '/'; }, 100);
+    return;
+  }
+  window.location.href = '/';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  connectWs();
+});
 </script>
 </body>
 </html>

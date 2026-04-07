@@ -274,10 +274,22 @@ async def handle_controller(request):
     if not session_user:
         return web.json_response({"error": "Unauthorized"}, status=401)
 
+    username = (session_user.get("username") or "").strip().lower()
+    display_name = (session_user.get("display_name") or username).strip() or username
+
     # Keep controller WS alive through idle phases (no user input during match).
     ws = web.WebSocketResponse(heartbeat=20) # every 20 sec
     await ws.prepare(request)
     state.controllers.add(ws)
+
+    if username:
+        state.ws_players[ws] = {"username": username, "display_name": display_name, "elo": 1000}
+        if state.matchmaking_room:
+            for player in state.matchmaking_room["players"]:
+                if player["username"] == username and player["ws"] is None:
+                    player["ws"] = ws
+                    break
+
     from matchmaking import table_status_payload
     await ws.send_str(json.dumps(table_status_payload()))
     cam_ws = state.validated_camera_ws
@@ -325,6 +337,12 @@ async def handle_controller(request):
                         from matchmaking import _force_end_match
                         await _force_end_match(keep_room=True)
 
+                elif msg_type == "mm_leave_match":
+                    from matchmaking import _mm_remove_player_by_username
+                    await _mm_remove_player_by_username(username)
+                    await ws.close()
+                    continue
+
                 elif msg_type == "confirm_calibration":
                     ok = confirm_calibration()
                     if ok:
@@ -346,6 +364,23 @@ async def handle_controller(request):
                 break
     finally:
         state.controllers.discard(ws)
+
+        from matchmaking import _force_end_match, _mm_remove_player_by_username
+
+        player_info = state.ws_players.pop(ws, {})
+        username = player_info.get("username", "")
+        is_active_in_room = (
+            state.matchmaking_room and
+            any(p["username"] == username and p["ws"] is ws for p in state.matchmaking_room.get("players", []))
+        )
+        if is_active_in_room:
+            if state.table_state in ("playing", "calibrating") and not state.match_over:
+                print(f"[CTRL] Player {username} disconnected during match -> forcing end")
+                await _force_end_match()
+            else:
+                print(f"[CTRL] Player {username} disconnected -> removing from room")
+                await _mm_remove_player_by_username(username)
+
     return ws
 
 async def handle_spectator(request):

@@ -180,6 +180,32 @@ async def _mm_remove_player(ws):
     if len(state.matchmaking_room["players"]) == 0:
         state.matchmaking_room = None
         state.table_state = "free"
+    else:
+        # If at least one player remains, reopen matchmaking flow.
+        state.table_state = "matchmaking"
+        state.match_paused = False
+        state.validated_camera_ws = None
+        state.validated_camera_username = None
+    changed = (len(state.matchmaking_room["players"]) != before) if state.matchmaking_room else (before > 0)
+    if changed:
+        await broadcast_table_status()
+
+async def _mm_remove_player_by_username(username):
+    if not state.matchmaking_room or not username:
+        return
+    before = len(state.matchmaking_room["players"])
+    state.matchmaking_room["players"] = [
+        p for p in state.matchmaking_room["players"] if p["username"] != username
+    ]
+    if len(state.matchmaking_room["players"]) == 0:
+        state.matchmaking_room = None
+        state.table_state = "free"
+    else:
+        # If at least one player remains, reopen matchmaking flow.
+        state.table_state = "matchmaking"
+        state.match_paused = False
+        state.validated_camera_ws = None
+        state.validated_camera_username = None
     changed = (len(state.matchmaking_room["players"]) != before) if state.matchmaking_room else (before > 0)
     if changed:
         await broadcast_table_status()
@@ -228,7 +254,7 @@ async def handle_lobby(request):
 
     ws = web.WebSocketResponse()
     await ws.prepare(request)
-    state.spectators.add(ws)
+    state.spectators.add(ws) # to receive table status updates and match events
     if username:
         state.ws_players[ws] = {"username": username, "display_name": display_name, "elo": 1000}
     await ws.send_str(json.dumps(table_status_payload()))
@@ -246,9 +272,9 @@ async def handle_lobby(request):
                         continue
 
                     elo = 1000
-                    pool = get_pool()
+                    pool = get_pool() # 5 connections to DB always open
                     if pool is not None:
-                        async with pool.acquire() as conn:
+                        async with pool.acquire() as conn: # waits for a connection if all are busy
                             row = await conn.fetchrow(
                                 "SELECT display_name, elo FROM players WHERE username=$1",
                                 username,
@@ -259,22 +285,18 @@ async def handle_lobby(request):
                         display_name = row["display_name"]
                         elo = row["elo"]
 
-                    if state.matchmaking_room and any(
-                        p["username"] == username and p["ws"] is not ws
-                        for p in state.matchmaking_room["players"]
-                    ):
-                        await ws.send_str(json.dumps({"type": "mm_error", "error": "You are already in the room"}))
-                        continue
+                    # If player is already in a room (from another tab), we remove them from that room before joining/creating a new one
                     if state.matchmaking_room:
                         state.matchmaking_room["players"] = [
                             p for p in state.matchmaking_room["players"]
-                            if not (p["username"] == username and p["ws"] is not ws)
+                            if p["username"] != username
                         ]
 
+                    # we create a new room if table is free, otherwise we join the existing one (if not full)
                     if state.table_state == "free":
                         state.matchmaking_room = {"mode": mode, "players": []}
                         state.table_state = "matchmaking"
-                    elif state.table_state != "matchmaking":
+                    elif state.table_state != "matchmaking": # waiting_camera, calibrating, playing, paused
                         await ws.send_str(json.dumps({"type": "mm_error", "error": "Table is busy"}))
                         continue
 
@@ -282,10 +304,11 @@ async def handle_lobby(request):
                         await ws.send_str(json.dumps({"type": "mm_error", "error": "Table is busy"}))
                         continue
                     needed = 2 if state.matchmaking_room["mode"] == "1v1" else 4
+                    
+                    # we add the player to the room if there's space, otherwise we reject
                     if len(state.matchmaking_room["players"]) >= needed:
                         await ws.send_str(json.dumps({"type": "mm_error", "error": "Room is full"}))
                         continue
-
                     state.matchmaking_room["players"].append({
                         "username": username, "display_name": display_name,
                         "elo": elo, "ready": False, "ws": ws,
@@ -303,7 +326,10 @@ async def handle_lobby(request):
                     print(f"[MM] Player detached WS to become controller")
 
                 elif msg_type == "mm_leave":
-                    await _mm_remove_player(ws)
+                    await _mm_remove_player_by_username(username)
+
+                elif msg_type == "mm_leave_match":
+                    await _mm_remove_player_by_username(username)
 
                 elif msg_type == "mm_ready":
                     if not state.matchmaking_room:
@@ -352,12 +378,12 @@ async def handle_lobby(request):
             any(p["username"] == username and p["ws"] is ws for p in state.matchmaking_room.get("players", []))
         )
         if is_active_in_room:
-            if state.table_state in ("playing", "calibrating", "waiting_camera") and not state.match_over:
+            if state.table_state in ("playing", "calibrating") and not state.match_over:
                 print(f"[MM] Player {username} disconnected during match -> forcing end")
                 await _force_end_match()
             else:
                 print(f"[MM] Player {username} disconnected -> removing from room")
-                await _mm_remove_player(ws)
+                await _mm_remove_player_by_username(username)
         else:
             print(f"[MM] Player {username} WS closed (already detached or not in room, ignoring)")
     return ws

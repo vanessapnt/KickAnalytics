@@ -9,7 +9,7 @@ async def init_db():
     _pool = await asyncpg.create_pool(
         dsn=os.environ["DATABASE_URL"],
         min_size=1,
-        max_size=5, # the 6th connectionexion will wait in the queue until one is released
+        max_size=5,
     )
     print("DB pool ready")
 

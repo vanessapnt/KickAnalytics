@@ -1187,7 +1187,8 @@ function startFilming(asPlayer = false) {
     'En attente de validation par le controller…';
   ensureLobbyConnected(() => {
     // this func will be called when ws opens
-    if (!isFilming || myRole !== 'camera') return;
+    if (!isFilming || myRole !== 'camera')
+      return;
     if (lobbyWs && lobbyWs.readyState === WebSocket.OPEN) {
       const user = currentUser || {};
       lobbyWs.send(JSON.stringify({
@@ -1216,7 +1217,8 @@ function stopFilming() {
 }
 
 function startMatchmaking() {
-  if (!authGuard()) return;
+  if (!authGuard())
+    return;
   document.getElementById('btnMatchmaking').disabled = true;
   document.getElementById('btnMatchmaking').textContent = 'Recherche...';
   ensureLobbyConnected(() => {
