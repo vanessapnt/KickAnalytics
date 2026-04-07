@@ -240,8 +240,17 @@ async def handle_camera(request):
 
     username = (session_user.get("username") or "inconnu").strip().lower()
 
-    if state.validated_camera_username != username:
-        return web.json_response({"error": "Not the active camera"}, status=403)
+    # Allow the currently validated camera, and also allow a matchmaking player
+    # to connect during active camera phases so camera_joined can auto-validate.
+    is_validated_camera = (state.validated_camera_username == username)
+    is_matchmaking_player = (
+        state.matchmaking_room and
+        any(p["username"] == username for p in state.matchmaking_room.get("players", []))
+    )
+    active_camera_phase = state.table_state in ("waiting_camera", "calibrating", "playing")
+
+    if active_camera_phase and not (is_validated_camera or is_matchmaking_player):
+        return web.json_response({"error": "Not allowed camera for this match"}, status=403)
 
     # no new in Python, just call the constructor to create the server ws
     ws = web.WebSocketResponse(max_msg_size=10*1024*1024)

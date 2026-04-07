@@ -297,6 +297,7 @@ function renderEloRow(d) {
 
 function connectWs() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    document.getElementById('btnConnect').disabled = false;
     return;
   }
   document.getElementById('btnConnect').disabled = true;
@@ -306,6 +307,7 @@ function connectWs() {
   ws.onopen = () => {
     opened = true;
     setStatus('Connecté', 'ok');
+    document.getElementById('btnConnect').disabled = false;
   };
 
   ws.onclose = () => {
@@ -430,7 +432,8 @@ function leaveController(event) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  connectWs();
+  const btn = document.getElementById('btnConnect');
+  if (btn) btn.disabled = false;
 });
 </script>
 </body>

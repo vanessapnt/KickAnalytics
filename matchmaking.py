@@ -42,22 +42,6 @@ async def broadcast_table_status():
 CAMERA_POOL_MAX = 3
 
 async def camera_joined(ws, username, display_name):
-    is_matchmaking_player = (
-        state.matchmaking_room and
-        any(p["username"] == username for p in state.matchmaking_room["players"])
-    )
-    if is_matchmaking_player and state.table_state in ("waiting_camera", "calibrating", "playing"):
-        state.camera_pool[ws] = {"username": username, "display_name": display_name}
-        state.validated_camera_ws = ws
-        state.validated_camera_username = username
-        state.table_state = "calibrating"
-        await broadcast(state.controllers, {"type": "camera_selected",
-                                            "camera": {"username": username, "display_name": display_name}})
-        await broadcast_table_status()
-        print(f"[CAM POOL] {display_name} player-camera -> auto validation")
-        return
-
-    # If match is paused and same camera reconnects, auto-resume
     if state.match_paused and username == state.validated_camera_username and state.table_state == "playing":
         state.camera_pool[ws] = {"username": username, "display_name": display_name}
         state.validated_camera_ws = ws
@@ -66,6 +50,21 @@ async def camera_joined(ws, username, display_name):
         await broadcast(state.controllers, {"type": "camera_resumed"})
         await broadcast_table_status()
         print(f"[CAM POOL] {display_name} reconnected -> match resumed")
+        return
+
+    is_matchmaking_player = (
+        state.matchmaking_room and
+        any(p["username"] == username for p in state.matchmaking_room["players"])
+    )
+    if is_matchmaking_player and not state.match_paused and state.table_state in ("waiting_camera", "calibrating", "playing"):
+        state.camera_pool[ws] = {"username": username, "display_name": display_name}
+        state.validated_camera_ws = ws
+        state.validated_camera_username = username
+        state.table_state = "calibrating"
+        await broadcast(state.controllers, {"type": "camera_selected",
+                                            "camera": {"username": username, "display_name": display_name}})
+        await broadcast_table_status()
+        print(f"[CAM POOL] {display_name} player-camera -> auto validation")
         return
 
     if len(state.camera_pool) >= CAMERA_POOL_MAX:

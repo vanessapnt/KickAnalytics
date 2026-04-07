@@ -277,14 +277,14 @@ async function start() {
   startInProgress = true;
   document.getElementById('btnStart').disabled = true;
   try {
-    // stream = await navigator.mediaDevices.getUserMedia({
-    //   video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-    //   audio: false
-    // });
-    // video.srcObject = stream;
-    video.src='/test.mp4'; video.loop=false; video.muted=true;
-    video.addEventListener('ended', () => { running=false; setStatus('Vidéo terminée'); });
-    await video.play();
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    // video.src='/test.mp4'; video.loop=false; video.muted=true;
+    // video.addEventListener('ended', () => { running=false; setStatus('Vidéo terminée'); });
+    // await video.play();
 
     const wsUrl = `${getWsBase()}/camera`;
     
@@ -302,7 +302,7 @@ async function start() {
       ws.onclose = () => {
         if (!opened) {
           running = false;
-          setStatus('Connexion refusée (auth requise)', 'err');
+          setStatus('Connexion refusée (auth ou camera non validee)', 'err');
           document.getElementById('btnStart').disabled = false;
           document.getElementById('btnStart').style.display = 'block';
           document.getElementById('btnStop').style.display = 'none';
@@ -357,7 +357,6 @@ function stop() {
   setTerrain('Non calibré');
 }
 
-window.addEventListener('load', () => start());
 </script>
 </body>
 </html>
