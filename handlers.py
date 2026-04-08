@@ -27,7 +27,7 @@ def decode_base64_to_cv2(image_b64):
 def compute_stats():
     if len(state.ball_history) < 2:
         return {}
-    speeds, heatmap, max_speed = [], np.zeros((20, 40)), 0
+    speeds, max_speed = [], 0
     best_shot = best_defense = None
     max_decel = 0
     for i in range(1, len(state.ball_history)):
@@ -36,10 +36,6 @@ def compute_stats():
         dt = max((p2["t"]-p1["t"])/1000, 0.001)
         speed = math.sqrt(dx*dx + dy*dy) / dt
         speeds.append(speed)
-        gx = int(p2["x"]/CANVAS_W*40)
-        gy = int(p2["y"]/CANVAS_H*20)
-        if 0 <= gx < 40 and 0 <= gy < 20:
-            heatmap[gy][gx] += 1
         if speed > max_speed:
             max_speed = speed
             best_shot = p2
@@ -54,7 +50,6 @@ def compute_stats():
         "max_speed": max_speed,
         "best_shot": best_shot,
         "best_defense": best_defense,
-        "heatmap": heatmap.tolist(),
     }
 
 async def save_match_end(score: dict, stats: dict):
@@ -85,11 +80,11 @@ async def save_match_end(score: dict, stats: dict):
             {"username": red_users[0], "team": "red", "role": "solo",
              "goals_scored": score["red"], "shots_total": 0, "shots_on_target": 0,
              "saves": 0, "possession_pct": 0.0,
-             "max_ball_speed": stats.get("max_speed", 0), "heatmap": stats.get("heatmap")},
+               "max_ball_speed": stats.get("max_speed", 0)},
             {"username": blue_users[0], "team": "blue", "role": "solo",
              "goals_scored": score["blue"], "shots_total": 0, "shots_on_target": 0,
              "saves": 0, "possession_pct": 0.0,
-             "max_ball_speed": stats.get("max_speed", 0), "heatmap": stats.get("heatmap")},
+               "max_ball_speed": stats.get("max_speed", 0)},
         ]
         elo_broadcast = {
             "mode": "1v1",
@@ -103,12 +98,12 @@ async def save_match_end(score: dict, stats: dict):
             players_info.append({"username": u, "team": "red", "role": role,
                 "goals_scored": score["red"], "shots_total": 0, "shots_on_target": 0,
                 "saves": 0, "possession_pct": 0.0,
-                "max_ball_speed": stats.get("max_speed", 0), "heatmap": stats.get("heatmap")})
+                "max_ball_speed": stats.get("max_speed", 0)})
         for u, role in zip(blue_users, blue_roles):
             players_info.append({"username": u, "team": "blue", "role": role,
                 "goals_scored": score["blue"], "shots_total": 0, "shots_on_target": 0,
                 "saves": 0, "possession_pct": 0.0,
-                "max_ball_speed": stats.get("max_speed", 0), "heatmap": stats.get("heatmap")})
+                "max_ball_speed": stats.get("max_speed", 0)})
         elo_broadcast = {
             "mode": "2v2",
             "red":  [{"username": red_users[0], "delta": elo_deltas.get("red_1", 0)},
@@ -140,14 +135,14 @@ async def inference_worker():
         if state.match_over:
             state.frame_queue.task_done(); continue
 
-        state.frame_replay_buffer.append(image_b64)
+        state.frame_replay_buffer.append({"image": image_b64, "ts": ts})
         if len(state.frame_replay_buffer) > state.REPLAY_BUFFER_SIZE:
             state.frame_replay_buffer.pop(0)
 
         if orig_w is None or orig_h is None:
             orig_h, orig_w = frame.shape[:2]
 
-        cx, cy, conf = await loop.run_in_executor(_inference_executor, detect_ball, frame)
+        cx, cy, _ = await loop.run_in_executor(_inference_executor, detect_ball, frame)
 
         if cx is not None:
             cx = cx / 640 * orig_w
@@ -161,10 +156,9 @@ async def inference_worker():
 
             if scorer and not state.replay_in_progress:
                 game.score[scorer] += 1
-                replay_before = list(state.frame_replay_buffer)
                 await broadcast(state.spectators, {"type": "goal", "team": scorer, "score": dict(game.score)})
                 await broadcast(state.controllers, {"type": "goal", "team": scorer, "score": dict(game.score)})
-                asyncio.create_task(send_replay_after(replay_before, 10))
+                asyncio.create_task(send_replay_around_goal(ts, 10, 10))
 
                 if game.score[scorer] >= state.GOALS_TO_WIN:
                     state.match_over = True
@@ -177,19 +171,46 @@ async def inference_worker():
                 "type": "position",
                 "x": kx / CANVAS_W,
                 "y": (ky - GOAL_DEPTH_PX) / FIELD_H_PX,
-                "conf": conf, "ts": ts, "score": dict(game.score),
+                "ts": ts, "score": dict(game.score),
             })
 
         state.frame_queue.task_done()
 
-async def send_replay_after(before_frames, n_after):
+def _find_goal_frame_index(buffer, goal_ts):
+    if not buffer:
+        return None
+    if goal_ts is None:
+        return len(buffer) - 1
+    best_idx = None
+    best_dist = None
+    for i, item in enumerate(buffer):
+        ts = item.get("ts")
+        if ts is None:
+            continue
+        dist = abs(ts - goal_ts)
+        if best_dist is None or dist < best_dist:
+            best_dist = dist
+            best_idx = i
+    return best_idx if best_idx is not None else len(buffer) - 1
+
+async def send_replay_around_goal(goal_ts, n_before, n_after):
     state.replay_in_progress = True
-    target = len(state.frame_replay_buffer) + n_after
-    while len(state.frame_replay_buffer) < min(target, state.REPLAY_BUFFER_SIZE):
-        await asyncio.sleep(0.05)
-    after_frames = state.frame_replay_buffer[-n_after:] if len(state.frame_replay_buffer) >= n_after else list(state.frame_replay_buffer)
-    await broadcast(state.spectators, {"type": "replay", "frames": before_frames + after_frames})
-    await asyncio.sleep(len(before_frames + after_frames) * 0.08 + 0.5)
+    deadline = time.time() + 2.0
+    while True:
+        buffer = list(state.frame_replay_buffer)
+        goal_idx = _find_goal_frame_index(buffer, goal_ts)
+        if goal_idx is None:
+            break
+        after_count = len(buffer) - goal_idx - 1
+        if after_count >= n_after or time.time() >= deadline:
+            start = max(0, goal_idx - n_before)
+            end = min(len(buffer), goal_idx + n_after + 1)
+            replay_frames = [item["image"] for item in buffer[start:end]]
+            if replay_frames:
+                await broadcast(state.spectators, {"type": "replay", "frames": replay_frames})
+                await asyncio.sleep(len(replay_frames) * 0.08 + 0.5)
+            break
+        await asyncio.sleep(0.03)
     state.replay_in_progress = False
 
 async def process_camera_message(ws, msg):
@@ -201,11 +222,12 @@ async def process_camera_message(ws, msg):
         if state.frame_queue.full():
             return
         image_b64 = data["image"]
+        ts = data.get("ts") or int(time.time() * 1000)
         orig_w = data.get("frame_width")
         orig_h = data.get("frame_height")
         frame = await loop.run_in_executor(None, decode_base64_to_cv2, image_b64)
         if frame is not None:
-            await state.frame_queue.put((frame, data.get("ts"), image_b64, orig_w, orig_h))
+            await state.frame_queue.put((frame, ts, image_b64, orig_w, orig_h))
 
     elif msg_type == "calibration_frame":
         image_b64 = data.get("image")

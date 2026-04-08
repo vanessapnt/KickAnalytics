@@ -1,6 +1,5 @@
 import asyncpg
 import os
-import json
 
 _pool: asyncpg.Pool = None
 
@@ -99,8 +98,8 @@ async def save_match(players_info: list, score: dict, elo_deltas: dict):
                     INSERT INTO {table_stats}
                         (match_id, player_id, role,
                          goals_scored, shots_total, shots_on_target,
-                         saves, possession_pct, max_ball_speed, heatmap)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                         saves, possession_pct, max_ball_speed)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                     """,
                     match_id,
                     player_ids[p["username"]],
@@ -111,7 +110,6 @@ async def save_match(players_info: list, score: dict, elo_deltas: dict):
                     p["saves"],
                     p["possession_pct"],
                     p["max_ball_speed"],
-                    json.dumps(p["heatmap"]) if p.get("heatmap") else None,
                 )
 
             # Update ELO ratings of the players
