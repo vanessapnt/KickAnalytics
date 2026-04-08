@@ -27,6 +27,9 @@ def decode_base64_to_cv2(image_b64):
 def compute_stats():
     if len(state.ball_history) < 2:
         return {}
+    # Convert canvas pixels to real-world centimeters, then speed to km/h.
+    x_cm_per_px = FIELD_W / CANVAS_W
+    y_cm_per_px = (FIELD_H + 2 * GOAL_DEPTH_CM) / CANVAS_H
     speeds, max_speed = [], 0
     best_shot = best_defense = None
     max_decel = 0
@@ -34,7 +37,10 @@ def compute_stats():
         p1, p2 = state.ball_history[i-1], state.ball_history[i]
         dx, dy = p2["x"]-p1["x"], p2["y"]-p1["y"]
         dt = max((p2["t"]-p1["t"])/1000, 0.001)
-        speed = math.sqrt(dx*dx + dy*dy) / dt
+        dx_cm = dx * x_cm_per_px
+        dy_cm = dy * y_cm_per_px
+        speed_cm_s = math.sqrt(dx_cm*dx_cm + dy_cm*dy_cm) / dt
+        speed = speed_cm_s * 0.036
         speeds.append(speed)
         if speed > max_speed:
             max_speed = speed

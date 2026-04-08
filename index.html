@@ -1509,7 +1509,7 @@ async function loadProfileStats() {
         <div class="profile-stat-card"><div class="profile-stat-val red">${wr}</div><div class="profile-stat-lbl">Win rate</div></div>
         <div class="profile-stat-card"><div class="profile-stat-val">${prec}</div><div class="profile-stat-lbl">Précision</div></div>
         <div class="profile-stat-card"><div class="profile-stat-val">${poss}</div><div class="profile-stat-lbl">Possession</div></div>
-        <div class="profile-stat-card"><div class="profile-stat-val">${d.avg_max_speed != null ? d.avg_max_speed : '—'}</div><div class="profile-stat-lbl">Vitesse max</div></div>
+        <div class="profile-stat-card"><div class="profile-stat-val">${d.avg_max_speed != null ? d.avg_max_speed + ' km/h' : '—'}</div><div class="profile-stat-lbl">Vitesse max</div></div>
         <div class="profile-stat-card"><div class="profile-stat-val">${d.total_goals ?? '—'}</div><div class="profile-stat-lbl">Buts</div></div>
       </div>
       <div>
