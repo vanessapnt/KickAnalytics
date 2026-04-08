@@ -208,16 +208,17 @@ async def process_camera_message(ws, msg):
             await state.frame_queue.put((frame, data.get("ts"), image_b64, orig_w, orig_h))
 
     elif msg_type == "calibration_frame":
-        frame = await loop.run_in_executor(None, decode_base64_to_cv2, data["image"])
+        image_b64 = data.get("image")
+        frame = await loop.run_in_executor(None, decode_base64_to_cv2, image_b64)
         if frame is None:
             await broadcast(state.cameras, {"type": "calibration_failed"})
-            await broadcast(state.controllers, {"type": "calibration_failed"})
+            await broadcast(state.controllers, {"type": "calibration_failed", "image": image_b64})
             await broadcast(state.spectators, {"type": "calibration_failed"})
             return
         corners = await loop.run_in_executor(None, detect_field_corners, frame)
         if corners is None:
             await broadcast(state.cameras, {"type": "calibration_failed"})
-            await broadcast(state.controllers, {"type": "calibration_failed"})
+            await broadcast(state.controllers, {"type": "calibration_failed", "image": image_b64})
             await broadcast(state.spectators, {"type": "calibration_failed"})
             return
         store_pending_calibration(corners, data.get("frame_width", frame.shape[1]), data.get("frame_height", frame.shape[0]))

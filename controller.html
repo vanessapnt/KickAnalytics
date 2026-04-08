@@ -157,10 +157,18 @@ header {
 .preview-card {
   background:var(--card); border-radius:var(--radius);
   overflow:hidden; border:1px solid var(--border);
-  box-shadow:0 1px 4px rgba(0,0,0,0.06); display:none;
+  box-shadow:0 1px 4px rgba(0,0,0,0.06); display:none; position:relative;
 }
 @media(max-width:767px) { .preview-card { border-radius:0; border-left:none; border-right:none; } }
 .preview-card img { display:block; width:100%; }
+.calibration-hint {
+  position:absolute; left:10px; right:10px; bottom:10px;
+  background:rgba(229,9,20,0.92); color:white;
+  border-radius:10px; padding:10px 12px;
+  font-size:12px; font-weight:700; line-height:1.35;
+  box-shadow:0 4px 14px rgba(0,0,0,0.2);
+  display:none;
+}
 </style>
 <script>
 function getWsBase() {
@@ -215,7 +223,10 @@ function getWsBase() {
           <span class="icon">🎯</span>
           <span class="hint">Lance la calibration<br>pour voir le terrain</span>
         </div>
-        <div class="preview-card" id="previewCard"><img id="previewImg"/></div>
+        <div class="preview-card" id="previewCard">
+          <img id="previewImg"/>
+          <div class="calibration-hint" id="previewHint">Terrain non détecté. Ajuste angle, hauteur et lumière, puis relance.</div>
+        </div>
       </div>
     </div>
 
@@ -258,6 +269,10 @@ function setStatus(t, type='') {
   const el = document.getElementById('statusTag');
   el.textContent = t;
   el.className = 'status-tag' + (type ? ' ' + type : '');
+}
+
+function setPreviewHint(visible) {
+  document.getElementById('previewHint').style.display = visible ? 'block' : 'none';
 }
 
 function setRole(team, idx, role, btn) {
@@ -319,6 +334,7 @@ function connectWs() {
     }
     document.getElementById('btnReady').style.display =
     document.getElementById('btnRetry').style.display = 'none';
+    setPreviewHint(false);
     setStatus('Déconnecté');
     document.getElementById('btnConnect').disabled = false;
   };
@@ -349,6 +365,7 @@ function connectWs() {
       document.getElementById('previewCard').style.display = 'block';
       document.getElementById('btnReady').style.display =
       document.getElementById('btnRetry').style.display = 'block';
+      setPreviewHint(false);
       setStatus('Vérifie le contour');
     }
     if (d.type === 'calibration_ok') {
@@ -356,15 +373,26 @@ function connectWs() {
       document.getElementById('previewEmpty').style.display = 'none';
       document.getElementById('btnReady').style.display =
       document.getElementById('btnRetry').style.display = 'none';
+      setPreviewHint(false);
       setStatus('🟢 Match en cours', 'ok');
       document.getElementById('stopSection').style.display = 'block';
     }
     if (d.type === 'calibration_failed') {
-      document.getElementById('previewCard').style.display = 'none';
-      document.getElementById('previewEmpty').style.display = 'flex';
-      document.getElementById('btnReady').style.display =
-      document.getElementById('btnRetry').style.display = 'none';
-      setStatus('❌ Échec, réessaie', 'err');
+      if (d.image) {
+        document.getElementById('previewImg').src = d.image;
+        document.getElementById('previewEmpty').style.display = 'none';
+        document.getElementById('previewCard').style.display = 'block';
+        document.getElementById('btnReady').style.display =
+        document.getElementById('btnRetry').style.display = 'block';
+        setPreviewHint(true);
+      } else {
+        document.getElementById('previewCard').style.display = 'none';
+        document.getElementById('previewEmpty').style.display = 'flex';
+        document.getElementById('btnReady').style.display =
+        document.getElementById('btnRetry').style.display = 'none';
+        setPreviewHint(false);
+      }
+      setStatus('❌ Échec, ajuste la caméra puis réessaie', 'err');
     }
     if (d.type === 'goal' && d.score) {
       document.getElementById('scoreRed').textContent = d.score.red;
@@ -376,6 +404,7 @@ function connectWs() {
       setStatus('🏁 Match terminé');
       document.getElementById('previewCard').style.display = 'none';
       document.getElementById('previewEmpty').style.display = 'none';
+      setPreviewHint(false);
       document.getElementById('stopSection').style.display = 'none';
       document.getElementById('replaySection').style.display = 'block';
     }
@@ -404,6 +433,7 @@ function triggerCalibration() {
   document.getElementById('previewEmpty').style.display = 'flex';
   document.getElementById('btnReady').style.display =
   document.getElementById('btnRetry').style.display = 'none';
+  setPreviewHint(false);
   setStatus('🔍 Détection terrain...');
 }
 
@@ -413,6 +443,7 @@ function confirmCalibration() {
   document.getElementById('previewEmpty').style.display = 'none';
   document.getElementById('btnReady').style.display =
   document.getElementById('btnRetry').style.display = 'none';
+  setPreviewHint(false);
   setStatus('🟢 Match en cours', 'ok');
 }
 
