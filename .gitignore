@@ -2,3 +2,5 @@
 __pycache__/
 .env
 *.mp4
+*.MOV
+test_pipeline.html

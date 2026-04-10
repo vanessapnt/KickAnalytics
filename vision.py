@@ -30,45 +30,51 @@ def detect_ball(frame):
     return float(preds[0][best_idx]), float(preds[1][best_idx]), conf
 
 def detect_field_corners(frame):
-    # Normaliser la luminosité avec CLAHE
     lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
     l, a, b = cv2.split(lab)
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
     l = clahe.apply(l)
     frame_norm = cv2.cvtColor(cv2.merge([l,a,b]), cv2.COLOR_LAB2BGR)
-
-    # Détecter le vert
+    
     hsv = cv2.cvtColor(frame_norm, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, (30, 15, 30), (90, 255, 255))
-
-    # Morphologie plus agressive
+    
     kernel = np.ones((25, 25), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-
-    # Trouver le plus grand contour
+    
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         return None
 
-    largest = max(contours, key=cv2.contourArea)
+    h, w = frame.shape[:2]
+    min_area = (w * h) * 0.01
+    valid_contours = [c for c in contours if cv2.contourArea(c) > min_area]
 
-    # Approx polygone
+    if not valid_contours:
+        return None
+
+    largest = max(valid_contours, key=cv2.contourArea)
     peri = cv2.arcLength(largest, True)
     approx = cv2.approxPolyDP(largest, 0.02 * peri, True)
-
     if len(approx) != 4:
-        # Fallback : utiliser la bounding box du plus grand contour vert
         rect = cv2.minAreaRect(largest)
         box = cv2.boxPoints(rect)
-        approx = box.reshape(4, 1, 2).astype(int)
-
+        approx = box.reshape(4, 1, 2).astype(float)
     pts4 = approx.reshape(4, 2).astype(float)
-    s = pts4.sum(axis=1)
-    d = np.diff(pts4, axis=1).flatten()
-    tl = pts4[s.argmin()].tolist()
-    br = pts4[s.argmax()].tolist()
-    tr = pts4[d.argmin()].tolist()
-    bl = pts4[d.argmax()].tolist()
 
+    x_min = pts4[:, 0].min()
+    x_max = pts4[:, 0].max()
+
+    top_n = sorted(valid_contours, key=cv2.contourArea, reverse=True)[:7]
+    all_points = np.vstack(top_n).reshape(-1, 2).astype(float)
+    y_min = all_points[:, 1].min()
+    y_max = all_points[:, 1].max()
+
+    tl = [x_min, y_min]
+    tr = [x_max, y_min]
+    br = [x_max, y_max]
+    bl = [x_min, y_max]
+
+    print(f"[CALIB] corners: tl={tl} tr={tr} br={br} bl={bl}")
     return [tl, tr, br, bl]

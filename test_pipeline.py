@@ -83,57 +83,67 @@ def main():
 
     inference_times = []
 
+
     for i, idx in enumerate(indices):
-        frame = raw_frames[idx]
-        oh, ow = frame.shape[:2]
+      frame = raw_frames[idx]
+      oh, ow = frame.shape[:2]
 
-        t0 = time.time()
-        cx_raw, cy_raw, conf = detect_ball_local(frame)
-        inference_ms = (time.time() - t0) * 1000
-        inference_times.append(inference_ms)
+      corners = detect_field_corners(frame)
+      if corners:
+        store_pending_calibration(corners, ow, oh)
+        confirm_calibration()
+        goal_top = game.goal_top
+        goal_bottom = game.goal_bottom
+      else:
+        goal_top = goal_bottom = None
 
-        cx_frame = cy_frame = None
-        if cx_raw is not None:
-            cx_frame = cx_raw / 640 * ow
-            cy_frame = cy_raw / 640 * oh
+      t0 = time.time()
+      cx_raw, cy_raw, conf = detect_ball_local(frame)
+      inference_ms = (time.time() - t0) * 1000
+      inference_times.append(inference_ms)
 
-        cx_canvas = cy_canvas = None
-        if cx_frame is not None and game.H_matrix is not None:
-            cx_canvas, cy_canvas = apply_homography(cx_frame, cy_frame)
+      cx_frame = cy_frame = None
+      if cx_raw is not None:
+        cx_frame = cx_raw / 640 * ow
+        cy_frame = cy_raw / 640 * oh
 
-        scored = None
-        if cx_canvas is not None and game.goal_top is not None:
-            scored = check_goal(cx_canvas, cy_canvas)
-            if scored:
-                game.score[scored] += 1
-                print(f"GOAL {scored.upper()}! frame {idx} score={game.score}")
+      cx_canvas = cy_canvas = None
+      if cx_frame is not None and game.H_matrix is not None:
+        cx_canvas, cy_canvas = apply_homography(cx_frame, cy_frame)
 
-        frame_draw = frame.copy()
-        if corners:
-            cv2.polylines(frame_draw, [np.int32(corners)], True, (0, 0, 220), 3)
-        if cx_frame is not None:
-            cv2.circle(frame_draw, (int(cx_frame), int(cy_frame)), 14, (0, 255, 255), 3)
-            cv2.circle(frame_draw, (int(cx_frame), int(cy_frame)), 3, (0, 255, 255), -1)
+      scored = None
+      if cx_canvas is not None and game.goal_top is not None:
+        scored = check_goal(cx_canvas, cy_canvas)
+        if scored:
+          game.score[scored] += 1
+          print(f"GOAL {scored.upper()}! frame {idx} score={game.score}")
 
-        results.append({
-            "frame_idx": idx,
-            "frame_num": i,
-            "conf": round(conf, 3),
-            "detected": cx_raw is not None,
-            "cx_frame": round(cx_frame, 1) if cx_frame is not None else None,
-            "cy_frame": round(cy_frame, 1) if cy_frame is not None else None,
-            "cx_canvas": round(cx_canvas, 1) if cx_canvas is not None else None,
-            "cy_canvas": round(cy_canvas, 1) if cy_canvas is not None else None,
-            "kx": round(cx_canvas, 1) if cx_canvas is not None else None,
-            "ky": round(cy_canvas, 1) if cy_canvas is not None else None,
-            "scored": scored,
-            "score_red": game.score["red"],
-            "score_blue": game.score["blue"],
-            "frame_b64": frame_to_b64(frame_draw, quality=70),
-        })
+      frame_draw = frame.copy()
+      if corners:
+        cv2.polylines(frame_draw, [np.int32(corners)], True, (0, 0, 220), 3)
+      if cx_frame is not None:
+        cv2.circle(frame_draw, (int(cx_frame), int(cy_frame)), 14, (0, 255, 255), 3)
+        cv2.circle(frame_draw, (int(cx_frame), int(cy_frame)), 3, (0, 255, 255), -1)
 
-        if (i + 1) % 10 == 0:
-            print(f"{i+1}/{len(indices)} processed frames (last inference: {inference_ms:.1f}ms)")
+      results.append({
+        "frame_idx": idx,
+        "frame_num": i,
+        "conf": round(conf, 3),
+        "detected": cx_raw is not None,
+        "cx_frame": round(cx_frame, 1) if cx_frame is not None else None,
+        "cy_frame": round(cy_frame, 1) if cy_frame is not None else None,
+        "cx_canvas": round(cx_canvas, 1) if cx_canvas is not None else None,
+        "cy_canvas": round(cy_canvas, 1) if cy_canvas is not None else None,
+        "kx": round(cx_canvas, 1) if cx_canvas is not None else None,
+        "ky": round(cy_canvas, 1) if cy_canvas is not None else None,
+        "scored": scored,
+        "score_red": game.score["red"],
+        "score_blue": game.score["blue"],
+        "frame_b64": frame_to_b64(frame_draw, quality=70),
+      })
+
+      if (i + 1) % 10 == 0:
+        print(f"{i+1}/{len(indices)} processed frames (last inference: {inference_ms:.1f}ms)")
 
     print(f"\n[Inference times]")
     print(f"min: {min(inference_times):.1f}ms")
