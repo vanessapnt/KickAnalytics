@@ -5,14 +5,17 @@ import os
 
 CONF_THRESH = 0.25
 
-_model_path = os.path.join(os.path.dirname(__file__), "model.onnx")
+_int8_path  = os.path.join(os.path.dirname(__file__), "model_int8.onnx")
+_model_path = _int8_path if os.path.exists(_int8_path) else \
+              os.path.join(os.path.dirname(__file__), "model.onnx")
 print(f"[vision] Loading model from {_model_path}...")
 
-# Limiter ONNX à 1 thread interne pour ne pas saturer les 2 CPU Cloud Run
 _opts = ort.SessionOptions()
-_opts.intra_op_num_threads = 2   # 2 threads ONNX sur 4 CPU dispo
-_opts.inter_op_num_threads = 1   # 1 suffit pour le graph scheduling
+_opts.intra_op_num_threads = 3
+_opts.inter_op_num_threads = 1
 _opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+_opts.enable_mem_pattern = True
+_opts.enable_cpu_mem_arena = True
 
 sess       = ort.InferenceSession(_model_path, sess_options=_opts)
 input_name = sess.get_inputs()[0].name
@@ -21,7 +24,7 @@ print("[vision] Model loaded")
 def detect_ball(frame):
     img = cv2.resize(frame, (640, 640))
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-    img = np.expand_dims(np.transpose(img, (2, 0, 1)), 0)
+    img = np.ascontiguousarray(np.transpose(img, (2, 0, 1)))[np.newaxis]
     preds    = sess.run(None, {input_name: img})[0][0]
     best_idx = np.argmax(preds[4])
     conf     = float(preds[4][best_idx])

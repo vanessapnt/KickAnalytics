@@ -14,6 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+RUN python3 quantize_model.py
+
 # ignored by google cloud build, but needed for local testing
 # 8080 : HTTP fichiers statiques
 # 8081 : WebSocket

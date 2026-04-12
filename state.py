@@ -6,6 +6,7 @@ REPLAY_BUFFER_SIZE = 30
 match_over: bool = False
 match_paused: bool = False
 ball_history: list = []
+goal_events: list = []   # [{team, ts}] – one entry per goal, in match order
 frame_replay_buffer: list = []
 replay_in_progress: bool = False
 

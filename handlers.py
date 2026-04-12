@@ -9,6 +9,7 @@ from config import *
 from game import game, apply_homography, check_goal, store_pending_calibration, confirm_calibration
 from vision import detect_ball, detect_field_corners
 from db import save_match, compute_elo_deltas, get_pool
+from zones import compute_attributed_stats
 import state
 from auth_session import get_session_user_from_request
 
@@ -31,8 +32,6 @@ def compute_stats():
     x_cm_per_px = FIELD_W / CANVAS_W
     y_cm_per_px = (FIELD_H + 2 * GOAL_DEPTH_CM) / CANVAS_H
     speeds, max_speed = [], 0
-    best_shot = best_defense = None
-    max_decel = 0
     for i in range(1, len(state.ball_history)):
         p1, p2 = state.ball_history[i-1], state.ball_history[i]
         dx, dy = p2["x"]-p1["x"], p2["y"]-p1["y"]
@@ -44,18 +43,9 @@ def compute_stats():
         speeds.append(speed)
         if speed > max_speed:
             max_speed = speed
-            best_shot = p2
-        if i > 1:
-            decel = speeds[-2] - speed
-            near_goal = p2["y"] < 0.1*CANVAS_H or p2["y"] > 0.9*CANVAS_H
-            if near_goal and decel > max_decel:
-                max_decel = decel
-                best_defense = p2
     return {
         "avg_speed": sum(speeds)/len(speeds),
         "max_speed": max_speed,
-        "best_shot": best_shot,
-        "best_defense": best_defense,
     }
 
 async def save_match_end(score: dict, stats: dict):
@@ -81,16 +71,30 @@ async def save_match_end(score: dict, stats: dict):
     elo_deltas = compute_elo_deltas(elos_red, elos_blue, score["red"], score["blue"])
     is_2v2 = match_mode == "2v2"
 
+    attributed, (blue_poss, red_poss) = compute_attributed_stats(
+        state.ball_history, state.goal_events, match_mode
+    )
+
+    def _pstat(team, role, key):
+        r = "solo" if not is_2v2 else role
+        return attributed.get((team, r), {}).get(key, 0)
+
     if not is_2v2:
         players_info = [
             {"username": red_users[0], "team": "red", "role": "solo",
-             "goals_scored": score["red"], "shots_total": 0, "shots_on_target": 0,
-             "saves": 0, "possession_pct": 0.0,
-               "max_ball_speed": stats.get("max_speed", 0)},
+             "goals_scored":    _pstat("red",  "solo", "goals"),
+             "shots_total":     _pstat("red",  "solo", "shots_total"),
+             "shots_on_target": _pstat("red",  "solo", "shots_on_target"),
+             "saves":           _pstat("red",  "solo", "saves"),
+             "possession_pct":  red_poss,
+             "max_ball_speed":  stats.get("max_speed", 0)},
             {"username": blue_users[0], "team": "blue", "role": "solo",
-             "goals_scored": score["blue"], "shots_total": 0, "shots_on_target": 0,
-             "saves": 0, "possession_pct": 0.0,
-               "max_ball_speed": stats.get("max_speed", 0)},
+             "goals_scored":    _pstat("blue", "solo", "goals"),
+             "shots_total":     _pstat("blue", "solo", "shots_total"),
+             "shots_on_target": _pstat("blue", "solo", "shots_on_target"),
+             "saves":           _pstat("blue", "solo", "saves"),
+             "possession_pct":  blue_poss,
+             "max_ball_speed":  stats.get("max_speed", 0)},
         ]
         elo_broadcast = {
             "mode": "1v1",
@@ -102,14 +106,20 @@ async def save_match_end(score: dict, stats: dict):
         players_info = []
         for u, role in zip(red_users, red_roles):
             players_info.append({"username": u, "team": "red", "role": role,
-                "goals_scored": score["red"], "shots_total": 0, "shots_on_target": 0,
-                "saves": 0, "possession_pct": 0.0,
-                "max_ball_speed": stats.get("max_speed", 0)})
+                "goals_scored":    _pstat("red",  role, "goals"),
+                "shots_total":     _pstat("red",  role, "shots_total"),
+                "shots_on_target": _pstat("red",  role, "shots_on_target"),
+                "saves":           _pstat("red",  role, "saves"),
+                "possession_pct":  red_poss,
+                "max_ball_speed":  stats.get("max_speed", 0)})
         for u, role in zip(blue_users, blue_roles):
             players_info.append({"username": u, "team": "blue", "role": role,
-                "goals_scored": score["blue"], "shots_total": 0, "shots_on_target": 0,
-                "saves": 0, "possession_pct": 0.0,
-                "max_ball_speed": stats.get("max_speed", 0)})
+                "goals_scored":    _pstat("blue", role, "goals"),
+                "shots_total":     _pstat("blue", role, "shots_total"),
+                "shots_on_target": _pstat("blue", role, "shots_on_target"),
+                "saves":           _pstat("blue", role, "saves"),
+                "possession_pct":  blue_poss,
+                "max_ball_speed":  stats.get("max_speed", 0)})
         elo_broadcast = {
             "mode": "2v2",
             "red":  [{"username": red_users[0], "delta": elo_deltas.get("red_1", 0)},
@@ -162,6 +172,7 @@ async def inference_worker():
 
             if scorer and not state.replay_in_progress:
                 game.score[scorer] += 1
+                state.goal_events.append({"team": scorer, "ts": ts})
                 await broadcast(state.spectators, {"type": "goal", "team": scorer, "score": dict(game.score)})
                 await broadcast(state.controllers, {"type": "goal", "team": scorer, "score": dict(game.score)})
                 asyncio.create_task(send_replay_around_goal(ts, 10, 10))
@@ -388,6 +399,7 @@ async def handle_controller(request):
                         state.match_paused = False
                         state.table_state = "playing"
                         state.ball_history.clear()
+                        state.goal_events.clear()
                         state.frame_replay_buffer.clear()
                         game.score["red"] = 0
                         game.score["blue"] = 0
