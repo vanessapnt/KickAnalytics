@@ -3,7 +3,7 @@ import numpy as np
 import onnxruntime as ort
 import os
 
-CONF_THRESH = 0.25
+CONF_THRESH = 0.45
 
 _int8_path  = os.path.join(os.path.dirname(__file__), "model_int8.onnx")
 _model_path = _int8_path if os.path.exists(_int8_path) else \

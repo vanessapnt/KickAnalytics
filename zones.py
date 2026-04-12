@@ -22,6 +22,8 @@ GOAL_X1 = int(CANVAS_W * _goal_offset_x / FIELD_W)
 GOAL_X2 = int(CANVAS_W * (_goal_offset_x + GOAL_W) / FIELD_W)
 
 CONTACT_DEVIATION_PX = 20
+DEV_AXIS_PX          = 8
+WALL_MARGIN_PX       = 15
 
 MAX_GAP_S         = 0.5
 GOAL_APPROACH_PX  = 100
@@ -45,6 +47,16 @@ def detect_contacts(ball_history):
         dt0 = max(dt0, 0.001)
         dt1 = max(dt1, 0.001)
 
+        vx0 = (p1["x"] - p0["x"]) / dt0
+        vy0 = (p1["y"] - p0["y"]) / dt0
+        vx1 = (p2["x"] - p1["x"]) / dt1
+        vy1 = (p2["y"] - p1["y"]) / dt1
+
+        near_side_wall = (p1["x"] < WALL_MARGIN_PX or
+                          p1["x"] > CANVAS_W - WALL_MARGIN_PX)
+        if near_side_wall and vx0 * vx1 < 0:
+            continue
+
         scale = dt1 / dt0
         pred_x = p1["x"] + (p1["x"] - p0["x"]) * scale
         pred_y = p1["y"] + (p1["y"] - p0["y"]) * scale
@@ -53,7 +65,8 @@ def detect_contacts(ball_history):
         dev_y = p2["y"] - pred_y
         deviation = math.sqrt(dev_x * dev_x + dev_y * dev_y)
 
-        if deviation < CONTACT_DEVIATION_PX:
+        if deviation < CONTACT_DEVIATION_PX and \
+                abs(dev_x) < DEV_AXIS_PX and abs(dev_y) < DEV_AXIS_PX:
             continue
 
         rod_idx = _nearest_rod(p1["y"])
@@ -62,10 +75,6 @@ def detect_contacts(ball_history):
             continue
 
         rod = RODS[rod_idx]
-        vx0 = (p1["x"] - p0["x"]) / dt0
-        vy0 = (p1["y"] - p0["y"]) / dt0
-        vx1 = (p2["x"] - p1["x"]) / dt1
-        vy1 = (p2["y"] - p1["y"]) / dt1
 
         contacts.append({
             "hist_idx": i,
@@ -161,16 +170,6 @@ def compute_attributed_stats(ball_history, goal_events, match_mode):
     return stats, possession
 
 def last_scorer_contact(contacts, goal_ts, scoring_team):
-    """
-    Return the contact to attribute a goal to.
-
-    Walk backwards through contacts before goal_ts and skip any goalkeeper
-    touch that belongs to the *conceding* team — those are post/frame
-    deflections, not intentional shots.  A goalkeeper of the *scoring* team
-    (rare but valid) keeps the credit.
-
-    Returns None when no contacts exist before the goal.
-    """
     prev = sorted(
         [c for c in contacts if c["t"] < goal_ts],
         key=lambda c: c["t"], reverse=True,

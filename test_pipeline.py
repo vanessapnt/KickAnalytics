@@ -22,7 +22,6 @@ from game import (
 )
 from zones import compute_attributed_stats, detect_contacts, last_scorer_contact
 from vision import detect_ball as detect_ball_local, detect_field_corners
-CONF_THRESH = 0.35
 
 def frame_to_b64(frame, quality=75):
     ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
