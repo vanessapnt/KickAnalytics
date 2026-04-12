@@ -97,10 +97,10 @@ deploy-gcloud:
 		--no-cpu-throttling \
 		--set-env-vars DATABASE_URL=$${DATABASE_URL}
 
-VIDEO  ?= test.mp4
-FRAMES ?= 100
-test-pipeline:
-	docker run --rm -v $(shell pwd):/app -w /app $(IMAGE_NAME) python3 test_pipeline.py $(VIDEO) $(FRAMES)
+VIDEO       ?= test.mp4
+SERVER_FPS  ?= 14
+test-pipeline: build
+	docker run --rm -v $(shell pwd):/app -w /app $(IMAGE_NAME) python3 test_pipeline.py $(VIDEO) $(SERVER_FPS)
 
 clean:
 	docker ps -q --filter ancestor=$(IMAGE_NAME) | xargs -r docker stop || true

@@ -3,6 +3,7 @@ aiohttp
 numpy
 opencv-python-headless
 onnxruntime
+onnx
 psycopg2-binary
 python-dotenv
 asyncpg

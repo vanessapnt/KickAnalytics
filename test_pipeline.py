@@ -20,7 +20,7 @@ from game import (
     store_pending_calibration,
     check_goal,
 )
-
+from zones import compute_attributed_stats, detect_contacts
 from vision import detect_ball as detect_ball_local, detect_field_corners
 CONF_THRESH = 0.35
 
@@ -29,8 +29,11 @@ def frame_to_b64(frame, quality=75):
     return base64.b64encode(buf.tobytes()).decode() if ok else ""
 
 def main():
-    video_path = sys.argv[1] if len(sys.argv) > 1 else "test.mp4"
-    n_frames = int(sys.argv[2]) if len(sys.argv) > 2 else 100
+    video_path  = sys.argv[1] if len(sys.argv) > 1 else "test.mp4"
+    # argv[2] : server_fps — effective frames/sec the server processes
+    #   FP32 model  → ~14 fps
+    #   INT8 model  → ~20 fps  (camera cap, use 20)
+    server_fps  = float(sys.argv[2]) if len(sys.argv) > 2 else 14.0
 
     if not os.path.exists(video_path):
         print(f"[ERROR] Video '{video_path}' not found")
@@ -42,8 +45,10 @@ def main():
     fps = cap.get(cv2.CAP_PROP_FPS)
     print(f"{total} total frames @ {fps:.1f} fps")
 
-    indices = sorted(set(int(i * total / n_frames) for i in range(n_frames)))
-    print(f"[+] Extracting {len(indices)} frames...")
+    # Sample consecutive frames at server_fps density (realistic timing)
+    step = max(1, round(fps / server_fps))
+    indices = list(range(0, total, step))
+    print(f"[+] server_fps={server_fps:.0f}  video_fps={fps:.1f}  step=1/{step}  → {len(indices)} frames")
 
     raw_frames = {}
     for idx in indices:
@@ -128,6 +133,7 @@ def main():
       results.append({
         "frame_idx": idx,
         "frame_num": i,
+        "ts": int(idx / fps * 1000),   # simulated timestamp in ms
         "conf": round(conf, 3),
         "detected": cx_raw is not None,
         "cx_frame": round(cx_frame, 1) if cx_frame is not None else None,
@@ -151,16 +157,53 @@ def main():
     print(f"mean: {sum(inference_times)/len(inference_times):.1f}ms")
     print(f"-> theoretical fps: {1000/(sum(inference_times)/len(inference_times)):.1f}fps")
 
+    # ── Zone stats ──────────────────────────────────────────────────────────
+    ball_history = [
+        {"x": r["kx"], "y": r["ky"], "t": r["ts"]}
+        for r in results if r["kx"] is not None
+    ]
+    goal_events = [
+        {"team": r["scored"], "ts": r["ts"]}
+        for r in results if r["scored"]
+    ]
+    attributed, (blue_poss, red_poss) = compute_attributed_stats(
+        ball_history, goal_events, "1v1"
+    )
+    contacts = detect_contacts(ball_history)
+
+    print(f"\n[Zone stats — 1v1]")
+    for (team, role), s in sorted(attributed.items()):
+        print(f"  {team:4s}: goals={s['goals']}  shots={s['shots_total']}  "
+              f"on_target={s['shots_on_target']}  saves={s['saves']}")
+    print(f"  Possession: blue={blue_poss}%  red={red_poss}%")
+    print(f"  Contacts detected: {len(contacts)}")
+
     print("[+] Generating HTML...")
-    generate_html(results, corners, goal_top, goal_bottom)
+    generate_html(results, corners, goal_top, goal_bottom, contacts, attributed, blue_poss, red_poss)
     print("[+] Done -> test_pipeline.html")
 
 
-def generate_html(results, corners, goal_top, goal_bottom):
-    data_json = json.dumps(results)
-    corners_json = json.dumps(corners)
-    goal_top_json = json.dumps(goal_top)
+def generate_html(results, corners, goal_top, goal_bottom,
+                  contacts, attributed, blue_poss, red_poss):
+    data_json        = json.dumps(results)
+    corners_json     = json.dumps(corners)
+    goal_top_json    = json.dumps(goal_top)
     goal_bottom_json = json.dumps(goal_bottom)
+    contacts_json    = json.dumps([{
+        "x": c["x"], "y": c["y"], "t": c["t"],
+        "team": c["team"], "name": c["name"],
+        "role": c["role_2v2"], "angle": c["angle"],
+    } for c in contacts])
+    stats_json = json.dumps({
+        k[0]: {   # key = team name ("blue"/"red") in 1v1
+            "goals":           v["goals"],
+            "shots_total":     v["shots_total"],
+            "shots_on_target": v["shots_on_target"],
+            "saves":           v["saves"],
+        }
+        for k, v in attributed.items()
+    })
+    poss_json = json.dumps({"blue": blue_poss, "red": red_poss})
 
     html = f"""<!DOCTYPE html>
 <html lang="fr">
@@ -338,6 +381,39 @@ input[type=range] {{ flex: 1; accent-color: var(--red); }}
       <div class="goal-log" id="goalLog">
         <div style="font-size:11px;color:var(--muted)">Aucun but</div>
       </div>
+      <div class="sep">Stats attribuées (1v1)</div>
+      <div class="stat-row">
+        <span class="stat-label">Possession</span>
+        <span class="stat-val" id="sPossBlue" style="color:#42a5f5">—</span>
+        <span class="stat-val" style="color:var(--muted);margin:0 4px">/</span>
+        <span class="stat-val" id="sPossRed"  style="color:#ef5350">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Buts</span>
+        <span class="stat-val" id="sGoalsBlue" style="color:#42a5f5">—</span>
+        <span class="stat-val" style="color:var(--muted);margin:0 4px">/</span>
+        <span class="stat-val" id="sGoalsRed"  style="color:#ef5350">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Tirs</span>
+        <span class="stat-val" id="sShotsBlue" style="color:#42a5f5">—</span>
+        <span class="stat-val" style="color:var(--muted);margin:0 4px">/</span>
+        <span class="stat-val" id="sShotsRed"  style="color:#ef5350">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Tirs cadrés</span>
+        <span class="stat-val" id="sOtBlue" style="color:#42a5f5">—</span>
+        <span class="stat-val" style="color:var(--muted);margin:0 4px">/</span>
+        <span class="stat-val" id="sOtRed"  style="color:#ef5350">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Arrêts</span>
+        <span class="stat-val" id="sSavesBlue" style="color:#42a5f5">—</span>
+        <span class="stat-val" style="color:var(--muted);margin:0 4px">/</span>
+        <span class="stat-val" id="sSavesRed"  style="color:#ef5350">—</span>
+      </div>
+      <div class="sep">Contacts (<span id="sContactCount">0</span> détectés)</div>
+      <div class="goal-log" id="contactLog" style="max-height:160px"></div>
     </div>
   </div>
 
@@ -352,11 +428,38 @@ const FH = FY1 - FY0;
 const data = {data_json};
 const goalTop = {goal_top_json};
 const goalBot = {goal_bottom_json};
+const contacts = {contacts_json};
+const matchStats = {stats_json};
+const possession = {poss_json};
 
 const canvas = document.getElementById('terrainCanvas');
 const ctx = canvas.getContext('2d');
 let current = 0, playing = false, playTimer = null;
 const goalLog = [];
+
+// Fill static attributed stats
+document.getElementById('sPossBlue').textContent  = possession.blue + '%';
+document.getElementById('sPossRed').textContent   = possession.red  + '%';
+document.getElementById('sGoalsBlue').textContent = matchStats.blue?.goals ?? '—';
+document.getElementById('sGoalsRed').textContent  = matchStats.red?.goals  ?? '—';
+document.getElementById('sShotsBlue').textContent = matchStats.blue?.shots_total ?? '—';
+document.getElementById('sShotsRed').textContent  = matchStats.red?.shots_total  ?? '—';
+document.getElementById('sOtBlue').textContent    = matchStats.blue?.shots_on_target ?? '—';
+document.getElementById('sOtRed').textContent     = matchStats.red?.shots_on_target  ?? '—';
+document.getElementById('sSavesBlue').textContent = matchStats.blue?.saves ?? '—';
+document.getElementById('sSavesRed').textContent  = matchStats.red?.saves  ?? '—';
+document.getElementById('sContactCount').textContent = contacts.length;
+
+// Build contact log entries
+(function() {{
+  const el = document.getElementById('contactLog');
+  if (!contacts.length) {{ el.innerHTML = '<div style="font-size:11px;color:var(--muted)">Aucun contact</div>'; return; }}
+  el.innerHTML = contacts.map((c, i) =>
+    `<div class="goal-entry ${{c.team}}" style="cursor:pointer;font-size:10px" onclick="seekToContact(${{i}})">
+      ${{c.team === 'blue' ? '🔵' : '🔴'}} ${{c.name}} — ${{c.angle}}° (${{(c.t/1000).toFixed(1)}}s)
+    </div>`
+  ).join('');
+}})();
 
 document.getElementById('scrubber').max = data.length - 1;
 function fitCanvas() {{
@@ -467,6 +570,41 @@ function drawBall(r) {{
   ctx.strokeStyle='#222'; ctx.lineWidth=1.5; ctx.stroke();
   ctx.shadowBlur=0;
 }}
+
+function drawContacts(currentTs) {{
+  const blueCol  = 'rgba(66,165,245,0.85)';
+  const redCol   = 'rgba(239,83,80,0.85)';
+  const blueRing = '#42a5f5';
+  const redRing  = '#ef5350';
+  contacts.forEach((c, i) => {{
+    if (c.t > currentTs) return;
+    const age = currentTs - c.t;          // ms since contact
+    const fade = Math.max(0, 1 - age / 4000);  // fade out over 4 s
+    if (fade <= 0) return;
+    ctx.globalAlpha = fade * 0.9;
+    const col  = c.team === 'blue' ? blueCol  : redCol;
+    const ring = c.team === 'blue' ? blueRing : redRing;
+    // Size proportional to angle (stronger contact = bigger dot)
+    const r = 5 + (c.angle / 180) * 8;
+    ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = col; ctx.fill();
+    ctx.strokeStyle = ring; ctx.lineWidth = 1.5; ctx.stroke();
+  }});
+  ctx.globalAlpha = 1;
+}}
+
+function seekToContact(idx) {{
+  if (idx < 0 || idx >= contacts.length) return;
+  const ts = contacts[idx].t;
+  // find closest frame
+  let best = 0, bestDist = Infinity;
+  data.forEach((d, i) => {{
+    const dist = Math.abs(d.ts - ts);
+    if (dist < bestDist) {{ bestDist = dist; best = i; }}
+  }});
+  goTo(best);
+}}
+
 function render(idx) {{
   current = idx;
   const r = data[idx];
@@ -507,7 +645,7 @@ function render(idx) {{
   }}
 
   ctx.clearRect(0, 0, CW, CH);
-  drawField(); drawGoals(); drawTrail(); drawBall(r);
+  drawField(); drawGoals(); drawContacts(r.ts); drawTrail(); drawBall(r);
 }}
 
 function refreshGoalLog() {{
