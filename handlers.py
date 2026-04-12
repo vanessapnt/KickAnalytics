@@ -9,7 +9,7 @@ from config import *
 from game import game, apply_homography, check_goal, store_pending_calibration, confirm_calibration
 from vision import detect_ball, detect_field_corners
 from db import save_match, compute_elo_deltas, get_pool
-from zones import compute_attributed_stats
+from zones import compute_attributed_stats, detect_contacts
 import state
 from auth_session import get_session_user_from_request
 
@@ -173,8 +173,14 @@ async def inference_worker():
             if scorer and not state.replay_in_progress:
                 game.score[scorer] += 1
                 state.goal_events.append({"team": scorer, "ts": ts})
-                await broadcast(state.spectators, {"type": "goal", "team": scorer, "score": dict(game.score)})
-                await broadcast(state.controllers, {"type": "goal", "team": scorer, "score": dict(game.score)})
+
+                contacts_so_far = detect_contacts(state.ball_history)
+                prev = [c for c in contacts_so_far if c["t"] <= ts]
+                scorer_rod = max(prev, key=lambda c: c["t"])["name"] if prev else None
+
+                goal_msg = {"type": "goal", "team": scorer, "score": dict(game.score), "rod": scorer_rod}
+                await broadcast(state.spectators, goal_msg)
+                await broadcast(state.controllers, goal_msg)
                 asyncio.create_task(send_replay_around_goal(ts, 10, 10))
 
                 if game.score[scorer] >= state.GOALS_TO_WIN:

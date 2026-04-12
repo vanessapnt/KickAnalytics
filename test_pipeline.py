@@ -30,10 +30,8 @@ def frame_to_b64(frame, quality=75):
 
 def main():
     video_path  = sys.argv[1] if len(sys.argv) > 1 else "test.mp4"
-    # argv[2] : server_fps — effective frames/sec the server processes
-    #   FP32 model  → ~14 fps
-    #   INT8 model  → ~20 fps  (camera cap, use 20)
     server_fps  = float(sys.argv[2]) if len(sys.argv) > 2 else 14.0
+    max_frames  = int(sys.argv[3])   if len(sys.argv) > 3 else 500
 
     if not os.path.exists(video_path):
         print(f"[ERROR] Video '{video_path}' not found")
@@ -45,62 +43,45 @@ def main():
     fps = cap.get(cv2.CAP_PROP_FPS)
     print(f"{total} total frames @ {fps:.1f} fps")
 
-    # Sample consecutive frames at server_fps density (realistic timing)
     step = max(1, round(fps / server_fps))
-    indices = list(range(0, total, step))
-    print(f"[+] server_fps={server_fps:.0f}  video_fps={fps:.1f}  step=1/{step}  → {len(indices)} frames")
+    indices = list(range(0, total, step))[:max_frames]
+    print(f"[+] server_fps={server_fps:.0f}  video_fps={fps:.1f}  step=1/{step}  max={max_frames}  → {len(indices)} frames")
 
-    raw_frames = {}
-    for idx in indices:
-        cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
-        ok, frame = cap.read()
-        if ok:
-            raw_frames[idx] = frame
-    cap.release()
-    print(f"{len(raw_frames)} extracted frames")
-
-    first_frame = raw_frames[indices[0]]
-    oh, ow = first_frame.shape[:2]
     corners = None
-
-    print("[+] Detecting field corners (detect_field_corners from server.py)...")
-    corners = detect_field_corners(first_frame)
-    if corners:
-        store_pending_calibration(corners, ow, oh)
-        confirm_calibration()
-        goal_top = game.goal_top
-        goal_bottom = game.goal_bottom
-        print(f"Corners: tl={corners[0]} tr={corners[1]} br={corners[2]} bl={corners[3]}")
-        print(f"Frame: {ow}x{oh}")
-        print(f"Top goal: x={goal_top['x1']}->{goal_top['x2']} y={goal_top['y1']}->{goal_top['y2']}")
-        print(f"Bottom goal: x={goal_bottom['x1']}->{goal_bottom['x2']} y={goal_bottom['y1']}->{goal_bottom['y2']}")
-        for name, (px, py) in zip(['tl', 'tr', 'br', 'bl'], corners):
-            mx, my = apply_homography(px, py)
-            print(f"Check {name}: ({px:.0f},{py:.0f}) -> ({mx:.1f},{my:.1f}) [expected: tl=(0,{FIELD_Y0}) tr=({CANVAS_W},{FIELD_Y0}) br=({CANVAS_W},{FIELD_Y1}) bl=(0,{FIELD_Y1})]")
+    goal_top = goal_bottom = None
+    for idx in indices[:10]:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+        ok, first_frame = cap.read()
+        if not ok:
+            continue
+        oh, ow = first_frame.shape[:2]
+        print("[+] Detecting field corners...")
+        corners = detect_field_corners(first_frame)
+        if corners:
+            store_pending_calibration(corners, ow, oh)
+            confirm_calibration()
+            goal_top  = game.goal_top
+            goal_bottom = game.goal_bottom
+            print(f"Corners: tl={corners[0]} tr={corners[1]} br={corners[2]} bl={corners[3]}")
+            print(f"Frame: {ow}x{oh}")
+            print(f"Top goal: x={goal_top['x1']}->{goal_top['x2']} y={goal_top['y1']}->{goal_top['y2']}")
+            print(f"Bottom goal: x={goal_bottom['x1']}->{goal_bottom['x2']} y={goal_bottom['y1']}->{goal_bottom['y2']}")
+            break
     else:
         print("[WARN] Corners not detected - homography disabled")
-        goal_top = goal_bottom = None
 
-    print(f"[+] Pipeline over {len(indices)} frames (detect_ball + apply_homography + check_goal from server/game.py)...")
+    print(f"[+] Pipeline over {len(indices)} frames...")
     game.ball_in_goal = False
     game.score = {"red": 0, "blue": 0}
     results = []
-
     inference_times = []
 
-
     for i, idx in enumerate(indices):
-      frame = raw_frames[idx]
+      cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+      ok, frame = cap.read()
+      if not ok:
+        continue
       oh, ow = frame.shape[:2]
-
-      corners = detect_field_corners(frame)
-      if corners:
-        store_pending_calibration(corners, ow, oh)
-        confirm_calibration()
-        goal_top = game.goal_top
-        goal_bottom = game.goal_bottom
-      else:
-        goal_top = goal_bottom = None
 
       t0 = time.time()
       cx_raw, cy_raw, conf = detect_ball_local(frame)
@@ -133,7 +114,7 @@ def main():
       results.append({
         "frame_idx": idx,
         "frame_num": i,
-        "ts": int(idx / fps * 1000),   # simulated timestamp in ms
+        "ts": int(idx / fps * 1000),
         "conf": round(conf, 3),
         "detected": cx_raw is not None,
         "cx_frame": round(cx_frame, 1) if cx_frame is not None else None,
@@ -157,7 +138,6 @@ def main():
     print(f"mean: {sum(inference_times)/len(inference_times):.1f}ms")
     print(f"-> theoretical fps: {1000/(sum(inference_times)/len(inference_times)):.1f}fps")
 
-    # ── Zone stats ──────────────────────────────────────────────────────────
     ball_history = [
         {"x": r["kx"], "y": r["ky"], "t": r["ts"]}
         for r in results if r["kx"] is not None
@@ -171,20 +151,30 @@ def main():
     )
     contacts = detect_contacts(ball_history)
 
+    goal_rods = []
+    for r in results:
+        if r["scored"]:
+            prev = [c for c in contacts if c["t"] <= r["ts"]]
+            rod = max(prev, key=lambda c: c["t"])["name"] if prev else None
+            goal_rods.append({"team": r["scored"], "ts": r["ts"],
+                               "frame_idx": r["frame_idx"], "rod": rod})
+
     print(f"\n[Zone stats — 1v1]")
     for (team, role), s in sorted(attributed.items()):
         print(f"  {team:4s}: goals={s['goals']}  shots={s['shots_total']}  "
               f"on_target={s['shots_on_target']}  saves={s['saves']}")
     print(f"  Possession: blue={blue_poss}%  red={red_poss}%")
     print(f"  Contacts detected: {len(contacts)}")
+    for g in goal_rods:
+        print(f"  Goal {g['team']:4s} frame={g['frame_idx']}  rod={g['rod']}")
 
     print("[+] Generating HTML...")
-    generate_html(results, corners, goal_top, goal_bottom, contacts, attributed, blue_poss, red_poss)
+    generate_html(results, corners, goal_top, goal_bottom, contacts, attributed, blue_poss, red_poss, goal_rods)
     print("[+] Done -> test_pipeline.html")
 
 
 def generate_html(results, corners, goal_top, goal_bottom,
-                  contacts, attributed, blue_poss, red_poss):
+                  contacts, attributed, blue_poss, red_poss, goal_rods=None):
     data_json        = json.dumps(results)
     corners_json     = json.dumps(corners)
     goal_top_json    = json.dumps(goal_top)
@@ -192,10 +182,11 @@ def generate_html(results, corners, goal_top, goal_bottom,
     contacts_json    = json.dumps([{
         "x": c["x"], "y": c["y"], "t": c["t"],
         "team": c["team"], "name": c["name"],
-        "role": c["role_2v2"], "angle": c["angle"],
+        "role": c["role_2v2"], "deviation": c["deviation"],
     } for c in contacts])
+    goal_rods_json   = json.dumps(goal_rods or [])
     stats_json = json.dumps({
-        k[0]: {   # key = team name ("blue"/"red") in 1v1
+        k[0]: {
             "goals":           v["goals"],
             "shots_total":     v["shots_total"],
             "shots_on_target": v["shots_on_target"],
@@ -431,11 +422,17 @@ const goalBot = {goal_bottom_json};
 const contacts = {contacts_json};
 const matchStats = {stats_json};
 const possession = {poss_json};
+const goalRods   = {goal_rods_json};
+const ROD_LABELS = {{
+  blue_goalkeeper:'Gardien Bleu',  blue_defense:'Défenseur Bleu',
+  blue_midfield:'Milieu Bleu',     blue_attack:'Attaquant Bleu',
+  red_goalkeeper:'Gardien Rouge',  red_defense:'Défenseur Rouge',
+  red_midfield:'Milieu Rouge',     red_midfield2:'Milieu Rouge',
+}};
 
 const canvas = document.getElementById('terrainCanvas');
 const ctx = canvas.getContext('2d');
 let current = 0, playing = false, playTimer = null;
-const goalLog = [];
 
 // Fill static attributed stats
 document.getElementById('sPossBlue').textContent  = possession.blue + '%';
@@ -456,7 +453,7 @@ document.getElementById('sContactCount').textContent = contacts.length;
   if (!contacts.length) {{ el.innerHTML = '<div style="font-size:11px;color:var(--muted)">Aucun contact</div>'; return; }}
   el.innerHTML = contacts.map((c, i) =>
     `<div class="goal-entry ${{c.team}}" style="cursor:pointer;font-size:10px" onclick="seekToContact(${{i}})">
-      ${{c.team === 'blue' ? '🔵' : '🔴'}} ${{c.name}} — ${{c.angle}}° (${{(c.t/1000).toFixed(1)}}s)
+      ${{c.team === 'blue' ? '🔵' : '🔴'}} ${{c.name}} — dev ${{c.deviation}}px (${{(c.t/1000).toFixed(1)}}s)
     </div>`
   ).join('');
 }})();
@@ -585,7 +582,7 @@ function drawContacts(currentTs) {{
     const col  = c.team === 'blue' ? blueCol  : redCol;
     const ring = c.team === 'blue' ? blueRing : redRing;
     // Size proportional to angle (stronger contact = bigger dot)
-    const r = 5 + (c.angle / 180) * 8;
+    const r = 5 + Math.min(c.deviation / 100, 1) * 8;
     ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
     ctx.fillStyle = col; ctx.fill();
     ctx.strokeStyle = ring; ctx.lineWidth = 1.5; ctx.stroke();
@@ -650,8 +647,18 @@ function render(idx) {{
 
 function refreshGoalLog() {{
   const el = document.getElementById('goalLog');
-  if (!goalLog.length) {{ el.innerHTML='<div style="font-size:11px;color:var(--muted)">Aucun but</div>'; return; }}
-  el.innerHTML = goalLog.map(g => `<div class="goal-entry ${{g.team}}">${{g.team === 'red' ? '🔴' : '🔵'}} But ${{g.team}} (frame ${{g.frame}})</div>`).join('');
+  if (!goalRods.length) {{ el.innerHTML='<div style="font-size:11px;color:var(--muted)">Aucun but</div>'; return; }}
+  el.innerHTML = goalRods.map(g => {{
+    const icon  = g.team === 'red' ? '🔴' : '🔵';
+    const label = g.rod ? (ROD_LABELS[g.rod] || g.rod) : g.team;
+    return `<div class="goal-entry ${{g.team}}" style="cursor:pointer" onclick="seekToTs(${{g.ts}})">${{icon}} ${{label}} (frame ${{g.frame_idx}})</div>`;
+  }}).join('');
+}}
+
+function seekToTs(ts) {{
+  let best = 0, bestDist = Infinity;
+  data.forEach((d, i) => {{ const dist = Math.abs(d.ts - ts); if (dist < bestDist) {{ bestDist = dist; best = i; }} }});
+  goTo(best);
 }}
 
 function navigate(d) {{ goTo(Math.max(0, Math.min(data.length - 1, current + d))); }}
@@ -670,10 +677,6 @@ document.addEventListener('keydown', e => {{
   if (e.key === 'ArrowRight') navigate(1);
   else if (e.key === 'ArrowLeft') navigate(-1);
   else if (e.key === ' ') {{ e.preventDefault(); togglePlay(); }}
-}});
-data.forEach(r => {{
-  if (r.scored && !goalLog.find(g => g.frame === r.frame_idx))
-    goalLog.push({{frame: r.frame_idx, team: r.scored}});
 }});
 refreshGoalLog();
 render(0);

@@ -1,22 +1,28 @@
 import math
-from config import FIELD_Y0, FIELD_Y1, FIELD_H_PX
+from config import FIELD_Y0, FIELD_Y1, FIELD_H_PX, CANVAS_W, FIELD_W, GOAL_W
 
 N_RODS = 8
 ROD_Y_PX = [FIELD_Y0 + i * FIELD_H_PX / (N_RODS - 1) for i in range(N_RODS)]
 
 RODS = [
     {"team": "blue", "name": "blue_goalkeeper", "2v2_role": "defender"},
-    {"team": "red",  "name": "red_attack",       "2v2_role": "attacker"},
     {"team": "blue", "name": "blue_defense",     "2v2_role": "defender"},
     {"team": "red",  "name": "red_midfield",     "2v2_role": "attacker"},
     {"team": "blue", "name": "blue_midfield",    "2v2_role": "attacker"},
-    {"team": "red",  "name": "red_defense",      "2v2_role": "defender"},
+    {"team": "red",  "name": "red_midfield2",    "2v2_role": "attacker"},
     {"team": "blue", "name": "blue_attack",      "2v2_role": "attacker"},
+    {"team": "red",  "name": "red_defense",      "2v2_role": "defender"},
     {"team": "red",  "name": "red_goalkeeper",   "2v2_role": "defender"},
 ]
 
-MIN_SPEED_PX_S    = 150
-CONTACT_ANGLE_DEG = 60
+GOALKEEPER_RODS = {0, 7}
+
+_goal_offset_x = (FIELD_W - GOAL_W) / 2
+GOAL_X1 = int(CANVAS_W * _goal_offset_x / FIELD_W)
+GOAL_X2 = int(CANVAS_W * (_goal_offset_x + GOAL_W) / FIELD_W)
+
+CONTACT_DEVIATION_PX = 20
+
 MAX_GAP_S         = 0.5
 GOAL_APPROACH_PX  = 100
 
@@ -33,43 +39,46 @@ def detect_contacts(ball_history):
 
         dt0 = (p1["t"] - p0["t"]) / 1000.0
         dt1 = (p2["t"] - p1["t"]) / 1000.0
-        
+
         if dt0 > MAX_GAP_S or dt1 > MAX_GAP_S:
             continue
         dt0 = max(dt0, 0.001)
         dt1 = max(dt1, 0.001)
 
+        scale = dt1 / dt0
+        pred_x = p1["x"] + (p1["x"] - p0["x"]) * scale
+        pred_y = p1["y"] + (p1["y"] - p0["y"]) * scale
+
+        dev_x = p2["x"] - pred_x
+        dev_y = p2["y"] - pred_y
+        deviation = math.sqrt(dev_x * dev_x + dev_y * dev_y)
+
+        if deviation < CONTACT_DEVIATION_PX:
+            continue
+
+        rod_idx = _nearest_rod(p1["y"])
+
+        if rod_idx in GOALKEEPER_RODS and not (GOAL_X1 <= p1["x"] <= GOAL_X2):
+            continue
+
+        rod = RODS[rod_idx]
         vx0 = (p1["x"] - p0["x"]) / dt0
         vy0 = (p1["y"] - p0["y"]) / dt0
         vx1 = (p2["x"] - p1["x"]) / dt1
         vy1 = (p2["y"] - p1["y"]) / dt1
 
-        spd0 = math.sqrt(vx0 * vx0 + vy0 * vy0)
-        spd1 = math.sqrt(vx1 * vx1 + vy1 * vy1)
-
-        if spd0 < MIN_SPEED_PX_S or spd1 < MIN_SPEED_PX_S:
-            continue
-
-        cos_a = max(-1.0, min(1.0, (vx0 * vx1 + vy0 * vy1) / (spd0 * spd1)))
-        angle = math.degrees(math.acos(cos_a))
-
-        if angle < CONTACT_ANGLE_DEG:
-            continue
-
-        rod_idx = _nearest_rod(p1["y"])
-        rod = RODS[rod_idx]
         contacts.append({
             "hist_idx": i,
             "x": p1["x"],
             "y": p1["y"],
             "t": p1["t"],
-            "rod_idx":  rod_idx,
-            "team":     rod["team"],
-            "name":     rod["name"],
-            "role_2v2": rod["2v2_role"],
+            "rod_idx":   rod_idx,
+            "team":      rod["team"],
+            "name":      rod["name"],
+            "role_2v2":  rod["2v2_role"],
             "vx0": vx0, "vy0": vy0,
             "vx1": vx1, "vy1": vy1,
-            "angle": round(angle, 1),
+            "deviation": round(deviation, 1),
         })
     return contacts
 
@@ -100,21 +109,18 @@ def compute_attributed_stats(ball_history, goal_events, match_mode):
     def key(team, role_2v2):
         return (team, "solo" if match_mode == "1v1" else role_2v2)
 
-    contacts  = detect_contacts(ball_history)
+    contacts   = detect_contacts(ball_history)
     possession = _possession(ball_history)
 
-    
     for goal in goal_events:
         prev = [c for c in contacts if c["t"] < goal["ts"]]
         if prev:
             last = max(prev, key=lambda c: c["t"])
             k = key(last["team"], last["role_2v2"])
         else:
-            
             k = key(goal["team"], "attacker")
         stats[k]["goals"] += 1
 
-    
     for i, c in enumerate(contacts):
         k    = key(c["team"], c["role_2v2"])
         team = c["team"]
@@ -132,7 +138,7 @@ def compute_attributed_stats(ball_history, goal_events, match_mode):
 
         if not toward_opp:
             continue
-        
+
         end_idx = contacts[i + 1]["hist_idx"] if i + 1 < len(contacts) else len(ball_history)
         segment = ball_history[c["hist_idx"]:end_idx]
 
@@ -144,7 +150,7 @@ def compute_attributed_stats(ball_history, goal_events, match_mode):
             continue
 
         stats[k]["shots_total"] += 1
-        
+
         on_target = any(
             (p["y"] >= FIELD_Y1 - GOAL_APPROACH_PX if team == "blue"
              else p["y"] <= FIELD_Y0 + GOAL_APPROACH_PX)
