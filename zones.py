@@ -113,9 +113,8 @@ def compute_attributed_stats(ball_history, goal_events, match_mode):
     possession = _possession(ball_history)
 
     for goal in goal_events:
-        prev = [c for c in contacts if c["t"] < goal["ts"]]
-        if prev:
-            last = max(prev, key=lambda c: c["t"])
+        last = last_scorer_contact(contacts, goal["ts"], goal["team"])
+        if last:
             k = key(last["team"], last["role_2v2"])
         else:
             k = key(goal["team"], "attacker")
@@ -160,3 +159,24 @@ def compute_attributed_stats(ball_history, goal_events, match_mode):
             stats[k]["shots_on_target"] += 1
 
     return stats, possession
+
+def last_scorer_contact(contacts, goal_ts, scoring_team):
+    """
+    Return the contact to attribute a goal to.
+
+    Walk backwards through contacts before goal_ts and skip any goalkeeper
+    touch that belongs to the *conceding* team — those are post/frame
+    deflections, not intentional shots.  A goalkeeper of the *scoring* team
+    (rare but valid) keeps the credit.
+
+    Returns None when no contacts exist before the goal.
+    """
+    prev = sorted(
+        [c for c in contacts if c["t"] < goal_ts],
+        key=lambda c: c["t"], reverse=True,
+    )
+    for c in prev:
+        if c["rod_idx"] in GOALKEEPER_RODS and c["team"] != scoring_team:
+            continue
+        return c
+    return prev[0] if prev else None

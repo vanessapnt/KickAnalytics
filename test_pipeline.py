@@ -20,7 +20,7 @@ from game import (
     store_pending_calibration,
     check_goal,
 )
-from zones import compute_attributed_stats, detect_contacts
+from zones import compute_attributed_stats, detect_contacts, last_scorer_contact
 from vision import detect_ball as detect_ball_local, detect_field_corners
 CONF_THRESH = 0.35
 
@@ -154,8 +154,8 @@ def main():
     goal_rods = []
     for r in results:
         if r["scored"]:
-            prev = [c for c in contacts if c["t"] <= r["ts"]]
-            rod = max(prev, key=lambda c: c["t"])["name"] if prev else None
+            c_scorer = last_scorer_contact(contacts, r["ts"], r["scored"])
+            rod = c_scorer["name"] if c_scorer else None
             goal_rods.append({"team": r["scored"], "ts": r["ts"],
                                "frame_idx": r["frame_idx"], "rod": rod})
 
