@@ -97,6 +97,7 @@ deploy-gcloud:
 		--no-cpu-throttling \
 		--set-env-vars DATABASE_URL=$${DATABASE_URL},CORS_ORIGINS=$${CORS_ORIGINS}
 
+# 5173 : default React/Vite port
 frontend-dev:
 	docker run --rm -p 5173:5173 -v $(shell pwd)/frontend:/app -w /app node:20-alpine sh -c "npm install && npm run dev -- --host"
 

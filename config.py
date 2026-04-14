@@ -14,7 +14,6 @@ MAX_MESSAGES_PER_SEC_SPECT = 5
 MAX_SPECTATORS             = 20
 
 PORT     = int(os.environ.get('PORT', 8080))
-WS_PORT  = PORT + 1
 
 SPECTATOR_PUBLIC = os.environ.get('SPECTATOR_PUBLIC', '0').strip().lower() in ('1', 'true', 'yes', 'on')
 
