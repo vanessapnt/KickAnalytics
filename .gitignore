@@ -3,4 +3,5 @@ __pycache__/
 .env
 *.mp4
 *.MOV
+*.onnx
 test_pipeline.html

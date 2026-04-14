@@ -95,7 +95,13 @@ deploy-gcloud:
 		--max-instances 1 \
 		--timeout 3600 \
 		--no-cpu-throttling \
-		--set-env-vars DATABASE_URL=$${DATABASE_URL}
+		--set-env-vars DATABASE_URL=$${DATABASE_URL},CORS_ORIGINS=$${CORS_ORIGINS}
+
+frontend-dev:
+	docker run --rm -p 5173:5173 -v $(shell pwd)/frontend:/app -w /app node:20-alpine sh -c "npm install && npm run dev -- --host"
+
+frontend-build:
+	docker run --rm -v $(shell pwd)/frontend:/app -w /app node:20-alpine sh -c "npm install && npm run build"
 
 VIDEO       ?= test.mp4
 SERVER_FPS  ?= 14
@@ -108,4 +114,4 @@ clean:
 	docker ps -aq --filter ancestor=$(IMAGE_NAME) | xargs -r docker rm || true
 	docker rmi $(IMAGE_NAME) || true
 
-.PHONY: info test install-docker install-ngrok install-gcloud build run-local tunnel check-gcloud gcloud-auth configure-gcloud deploy-gcloud test-pipeline clean
+.PHONY: info test install-docker install-ngrok install-gcloud build run-local tunnel check-gcloud gcloud-auth configure-gcloud deploy-gcloud test-pipeline frontend-dev frontend-build clean

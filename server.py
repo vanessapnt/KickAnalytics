@@ -1,8 +1,31 @@
-import asyncio, json, mimetypes
+import asyncio, json, mimetypes, os
 from pathlib import Path
 from aiohttp import web
 
 from config import PORT
+
+# Comma-separated list of allowed origins, e.g.:
+#   CORS_ORIGINS=https://kickanalytics.pages.dev,http://localhost:5173
+_CORS_ORIGINS = set(
+    o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()
+)
+
+@web.middleware
+async def cors_middleware(request, handler):
+    origin = request.headers.get("Origin", "")
+    if request.method == "OPTIONS":
+        resp = web.Response(status=204)
+    else:
+        try:
+            resp = await handler(request)
+        except web.HTTPException as exc:
+            resp = exc
+    if origin and (not _CORS_ORIGINS or origin in _CORS_ORIGINS):
+        resp.headers["Access-Control-Allow-Origin"]      = origin
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+        resp.headers["Access-Control-Allow-Methods"]     = "GET, POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"]     = "Content-Type"
+    return resp
 from db import init_db, close_db
 import state
 from handlers import handle_camera, handle_controller, handle_spectator, inference_worker
@@ -62,7 +85,8 @@ async def main():
     await init_db()
     asyncio.create_task(inference_worker())
 
-    app = web.Application(client_max_size=20*1024*1024)
+    app = web.Application(client_max_size=20*1024*1024, middlewares=[cors_middleware])
+    app.router.add_route("OPTIONS", "/{path_info:.*}", lambda r: web.Response(status=204))
 
     app.router.add_route("GET", "/ws", ws_router)
     app.router.add_route("GET", "/ws/{tail:.*}", ws_router)
