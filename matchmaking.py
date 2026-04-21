@@ -251,7 +251,7 @@ async def handle_lobby(request):
     username = (session_user.get("username") or "").strip().lower()
     display_name = (session_user.get("display_name") or username).strip() or username
 
-    ws = web.WebSocketResponse()
+    ws = web.WebSocketResponse(heartbeat=20)
     await ws.prepare(request)
     state.spectators.add(ws) # to receive table status updates and match events
     if username:

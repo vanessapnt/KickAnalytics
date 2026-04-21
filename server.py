@@ -32,7 +32,6 @@ from handlers import handle_camera, handle_controller, handle_spectator, inferen
 from matchmaking import handle_lobby
 from auth_session import get_session_user_from_request
 from api import (
-    api_players, api_players_create,
     api_auth_register, api_auth_login, api_auth_logout,
     api_leaderboard, api_player_stats, api_debug_dump_sets,
 )
@@ -62,6 +61,7 @@ async def http_file_handler(request):
         return web.Response(status=404, text="Not Found")
     mime, _ = mimetypes.guess_type(str(file_path))
     loop = asyncio.get_event_loop()
+    # None means to use the default executor bc file_path.read_bytes is blocking
     data = await loop.run_in_executor(None, file_path.read_bytes)
     response = web.Response(body=data, content_type=mime or "application/octet-stream")
     if request_path.endswith(".html") and request_path not in PUBLIC_HTML_PATHS:
@@ -75,33 +75,35 @@ async def ws_router(request):
     if "/lobby" in path: return await handle_lobby(request)
     return await handle_spectator(request)
 
-
 async def main():
     import concurrent.futures
+    # ThreadPoolExecutor or ProcessPoolExecutor
     general_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix='cv2')
+    # threads called cv2_0 and cv2_1
+    # if 10 tasks, only 2 active at a time, the rest wait in a queue
     asyncio.get_event_loop().set_default_executor(general_executor)
+    # run_in_executor(None, blocking_function) -> fast operations: reading a file, decoding a base64 image, detecting field corners
+    # run_in_executor(_inference_executor, blocking_function) -> slow operations: running the full model inference
 
-    state.frame_queue = asyncio.Queue(maxsize=2)
+    state.frame_queue = asyncio.Queue(maxsize=2) # can wait
     await init_db()
     asyncio.create_task(inference_worker())
 
-    app = web.Application(client_max_size=20*1024*1024, middlewares=[cors_middleware])
-    app.router.add_route("OPTIONS", "/{path_info:.*}", lambda r: web.Response(status=204))
+    app = web.Application(client_max_size=20*1024*1024) # 20 MB max for websocket messages (for the base64 frames)
 
     app.router.add_route("GET", "/ws", ws_router)
     app.router.add_route("GET", "/ws/{tail:.*}", ws_router)
 
-    app.router.add_route("GET", "/config.json", lambda r: web.Response(text=json.dumps({"ws_port": PORT}), content_type="application/json"))
     app.router.add_route("POST", "/api/auth/register", api_auth_register)
     app.router.add_route("POST", "/api/auth/login", api_auth_login)
     app.router.add_route("POST", "/api/auth/logout", api_auth_logout)
-    app.router.add_route("POST", "/api/debug/dump-sets", api_debug_dump_sets)
-    app.router.add_route("GET", "/api/players", api_players)
-    app.router.add_route("POST", "/api/players", api_players_create)
     app.router.add_route("GET", "/api/leaderboard", api_leaderboard)
     app.router.add_route("GET", "/api/players/{username}/stats", api_player_stats)
 
-    app.router.add_route("GET", "/{path_info:.*}", http_file_handler)
+    app.router.add_route("POST", "/api/debug/dump-sets", api_debug_dump_sets)
+    
+    # catch-all for static files so never returns 404 automatically, we handle it in http_file_handler
+    app.router.add_route("GET", "/{path_info:.*}", http_file_handler) 
 
     runner = web.AppRunner(app)
     await runner.setup()

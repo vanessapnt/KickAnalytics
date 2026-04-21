@@ -61,33 +61,6 @@ async def api_debug_dump_sets(request):
     print("[DEBUG][STATE_DUMP]", json.dumps(payload, ensure_ascii=False))
     return _json(payload)
 
-async def api_players(request):
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT username, display_name, elo FROM players ORDER BY elo DESC")
-    return _json([{"username": r["username"], "display_name": r["display_name"], "elo": r["elo"]} for r in rows])
-
-async def api_players_create(request):
-    try:
-        body = await request.json()
-    except Exception:
-        return _json({"error": "Invalid JSON"}, 400)
-    username = (body.get("username") or "").strip()
-    display_name = (body.get("display_name") or "").strip()
-    if not username or not display_name:
-        return _json({"error": "username and display_name are required"}, 400)
-    pool = get_pool()
-    try:
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "INSERT INTO players (username, display_name) VALUES ($1, $2) RETURNING id, username, display_name, elo",
-                username, display_name)
-        return _json({"id": str(row["id"]), "username": row["username"], "display_name": row["display_name"], "elo": row["elo"]}, 201)
-    except Exception as e:
-        if "unique" in str(e).lower():
-            return _json({"error": "username already taken"}, 409)
-        return _json({"error": str(e)}, 500)
-
 async def api_auth_register(request):
     try:
         body = await request.json()

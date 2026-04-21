@@ -299,7 +299,7 @@ async def handle_camera(request):
         return web.json_response({"error": "Not allowed camera for this match"}, status=403)
 
     # no new in Python, just call the constructor to create the server ws
-    ws = web.WebSocketResponse(max_msg_size=10*1024*1024)
+    ws = web.WebSocketResponse(heartbeat=20, max_msg_size=10*1024*1024)
     # sends 101 OK UPGRADE http -> ws
     await ws.prepare(request)
 
@@ -445,7 +445,7 @@ async def handle_spectator(request):
         if not session_user:
             return web.json_response({"error": "Unauthorized"}, status=401)
 
-    ws = web.WebSocketResponse()
+    ws = web.WebSocketResponse(heartbeat=20)
     await ws.prepare(request)
     state.spectators.add(ws)
     try:
