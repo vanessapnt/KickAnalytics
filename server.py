@@ -1,31 +1,9 @@
-import asyncio, json, mimetypes, os
+import asyncio, mimetypes, os
 from pathlib import Path
 from aiohttp import web
 
 from config import PORT
 
-# Comma-separated list of allowed origins, e.g.:
-#   CORS_ORIGINS=https://kickanalytics.pages.dev,http://localhost:5173
-_CORS_ORIGINS = set(
-    o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()
-)
-
-@web.middleware
-async def cors_middleware(request, handler):
-    origin = request.headers.get("Origin", "")
-    if request.method == "OPTIONS":
-        resp = web.Response(status=204)
-    else:
-        try:
-            resp = await handler(request)
-        except web.HTTPException as exc:
-            resp = exc
-    if origin and (not _CORS_ORIGINS or origin in _CORS_ORIGINS):
-        resp.headers["Access-Control-Allow-Origin"]      = origin
-        resp.headers["Access-Control-Allow-Credentials"] = "true"
-        resp.headers["Access-Control-Allow-Methods"]     = "GET, POST, OPTIONS"
-        resp.headers["Access-Control-Allow-Headers"]     = "Content-Type"
-    return resp
 from db import init_db, close_db
 import state
 from handlers import handle_camera, handle_controller, handle_spectator, inference_worker
@@ -35,6 +13,33 @@ from api import (
     api_auth_register, api_auth_login, api_auth_logout,
     api_leaderboard, api_player_stats, api_debug_dump_sets,
 )
+
+# Comma-separated list of allowed origins, e.g.: CORS_ORIGINS=https://kickanalytics.pages.dev,http://localhost:5173
+_CORS_ORIGINS = set(
+    o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()
+)
+
+# middleware is a function that runs for every request before the handler, needed for CORS
+# handled by Cloudflare Worker in production, but needed for local development with separate frontend server
+# TODO : can be replaced later by Vite proxy
+@web.middleware
+async def cors_middleware(request, handler):
+    origin = request.headers.get("Origin", "") # address of the frontend server that made the request, e.g. http://localhost:5173 or pages.dev
+    if request.method == "OPTIONS": # preflight request for CORS, we just respond with the appropriate headers without calling the handler
+        resp = web.Response(status=204) # ok -> added on web cache and used for the actual request
+    else:
+        try:
+            resp = await handler(request)
+        except web.HTTPException as exc:
+            resp = exc
+    # e.g curl -> origin is empty -> don't need CORS headers
+    # _CORS_ORIGINS empty -> we allow all origins
+    if origin and (not _CORS_ORIGINS or origin in _CORS_ORIGINS):
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Credentials"] = "true" # allows cookies
+        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return resp
 
 STATIC_ROOT = Path(__file__).parent
 PUBLIC_HTML_PATHS = {"/", "/index.html"}
@@ -49,23 +54,27 @@ def _page_access_cookie_for(path: str):
 async def http_file_handler(request):
     request_path = request.path
     if request_path.endswith(".html") and request_path not in PUBLIC_HTML_PATHS:
-        if not get_session_user_from_request(request):
-            raise web.HTTPFound("/")
-        expected_cookie = _page_access_cookie_for(request_path)
+        if not get_session_user_from_request(request): # checks ka_session cookie -> not logged in
+            raise web.HTTPFound("/") # raise throws an exception that aiohttp catches and turns into redirection response (HTTP 302)
+        expected_cookie = _page_access_cookie_for(request_path) # checks ka_page_access cookie : "controller" or "camera" (single-use before serving the page)
         if expected_cookie and request.cookies.get("ka_page_access") != expected_cookie:
             raise web.HTTPFound("/")
 
+    # we find the file and read it
     path = request_path if request_path != "/" else "/index.html"
     file_path = STATIC_ROOT / path.lstrip("/")
     if not file_path.exists() or not file_path.is_file():
         return web.Response(status=404, text="Not Found")
-    mime, _ = mimetypes.guess_type(str(file_path))
+    mime, _ = mimetypes.guess_type(str(file_path)) # guess the type based on the file extension (e.g. .html -> text/html)
     loop = asyncio.get_event_loop()
     # None means to use the default executor bc file_path.read_bytes is blocking
     data = await loop.run_in_executor(None, file_path.read_bytes)
-    response = web.Response(body=data, content_type=mime or "application/octet-stream")
+    
+    # we can return the content
+    response = web.Response(body=data, content_type=mime or "application/octet-stream") #  to download it bc display is impossible (e.g. model.onnx)
     if request_path.endswith(".html") and request_path not in PUBLIC_HTML_PATHS:
         response.del_cookie("ka_page_access")
+        # cookie is single-use, so we delete if after checking it
     return response
 
 async def ws_router(request):
