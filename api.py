@@ -7,9 +7,8 @@ from db import get_pool
 from auth_session import create_session_token, set_session_cookie, clear_session_cookie, get_session_user_from_request
 from config import ENABLE_DEBUG_STATE_DUMP
 
-def _json(data, status=200):
+def _resp(data, status=200):
     return web.Response(status=status, text=json.dumps(data), content_type="application/json")
-
 
 def _safe_username_from_ws(ws):
     info = state.camera_pool.get(ws)
@@ -20,14 +19,15 @@ def _safe_username_from_ws(ws):
         return player.get("username")
     return None
 
-
 async def api_debug_dump_sets(request):
     if not ENABLE_DEBUG_STATE_DUMP:
-        return _json({"error": "Debug state dump is disabled"}, 403)
+        return _resp({"error": "Debug state dump is disabled"}, 403)
 
     session_user = get_session_user_from_request(request)
     if not session_user:
-        return _json({"error": "Unauthorized"}, 401)
+        return _resp({"error": "Unauthorized"}, 401)
+    if session_user["username"] not in ADMIN_USERNAMES:
+        return _resp({"error": "Forbidden"}, 403)
 
     cameras_usernames = sorted({u for u in (_safe_username_from_ws(ws) for ws in state.cameras) if u})
     spectators_usernames = sorted({u for u in (_safe_username_from_ws(ws) for ws in state.spectators) if u})
@@ -59,58 +59,61 @@ async def api_debug_dump_sets(request):
     }
 
     print("[DEBUG][STATE_DUMP]", json.dumps(payload, ensure_ascii=False))
-    return _json(payload)
+    return _resp(payload)
 
 async def api_auth_register(request):
     try:
         body = await request.json()
     except Exception:
-        return _json({"error": "Invalid JSON"}, 400)
+        return _resp({"error": "Invalid JSON"}, 400)
     username = (body.get("username") or "").strip().lower()
     display_name = (body.get("display_name") or "").strip()
     password = (body.get("password") or "").strip()
     if not username or not display_name or not password:
-        return _json({"error": "username, display_name and password are required"}, 400)
-    if len(password) < 6:
-        return _json({"error": "Password too short (minimum 6 characters)"}, 400)
+        return _resp({"error": "username, display_name and password are required"}, 400)
+    if len(password) < 6: # needs to be checked on server side too bc the front can be bypassed using curl
+        return _resp({"error": "Password too short (minimum 6 characters)"}, 400)
+    
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    # encode() : str -> bytes (bcrypt needs bytes)
     pool = get_pool()
     try:
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 "INSERT INTO players (username, display_name, password_hash) VALUES ($1, $2, $3) RETURNING id, username, display_name, elo",
                 username, display_name, password_hash)
-        response = _json({"id": str(row["id"]), "username": row["username"], "display_name": row["display_name"], "elo": row["elo"]}, 201)
+        response = _resp({"id": str(row["id"]), "username": row["username"], "display_name": row["display_name"], "elo": row["elo"]}, 201)
         token = create_session_token(user_id=str(row["id"]), username=row["username"], display_name=row["display_name"])
+        # cookie "ka_session" = "eyJ1c2VybmFtZSI6ImFsaWNlIn0.ABC123signature" (payload in base64 + signature)
+        # cookie_name = token 
         set_session_cookie(response, token, secure=(request.scheme == "https"))
         return response
     except Exception as e:
         if "unique" in str(e).lower():
-            return _json({"error": "This username is already taken"}, 409)
-        return _json({"error": str(e)}, 500)
+            return _resp({"error": "This username is already taken"}, 409)
+        return _resp({"error": str(e)}, 500)
 
 async def api_auth_login(request):
     try:
         body = await request.json()
     except Exception:
-        return _json({"error": "Invalid JSON"}, 400)
+        return _resp({"error": "Invalid JSON"}, 400)
     username = (body.get("username") or "").strip().lower()
     password = (body.get("password") or "").strip()
     if not username or not password:
-        return _json({"error": "username and password are required"}, 400)
+        return _resp({"error": "username and password are required"}, 400)
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT id, username, display_name, elo, password_hash FROM players WHERE username = $1", username)
     if row is None:
-        return _json({"error": "Username not found"}, 401)
+        return _resp({"error": "Username not found"}, 401)
     if not bcrypt.checkpw(password.encode(), row["password_hash"].encode()):
-        return _json({"error": "Incorrect password"}, 401)
-    response = _json({"id": str(row["id"]), "username": row["username"], "display_name": row["display_name"], "elo": row["elo"]})
+        return _resp({"error": "Incorrect password"}, 401)
+    response = _resp({"id": str(row["id"]), "username": row["username"], "display_name": row["display_name"], "elo": row["elo"]})
     token = create_session_token(user_id=str(row["id"]), username=row["username"], display_name=row["display_name"])
     set_session_cookie(response, token, secure=(request.scheme == "https"))
     return response
-
 
 async def api_auth_logout(request):
     response = web.Response(status=204)
@@ -122,23 +125,30 @@ async def api_leaderboard(request):
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT p.id, p.username, p.display_name, p.elo,
+                # Nb of matches played (as red or blue) for this player
                 COUNT(DISTINCT m.id) AS matches_played,
+                # Nb of wins for this player
                 COUNT(DISTINCT m.id) FILTER (
                     WHERE (m.player_red_id  = p.id AND m.score_red  > m.score_blue)
                        OR (m.player_blue_id = p.id AND m.score_blue > m.score_red)
                 ) AS wins,
+                # Winrate percentage (wins / matches_played)
                 ROUND(100.0 * COUNT(DISTINCT m.id) FILTER (
                     WHERE (m.player_red_id  = p.id AND m.score_red  > m.score_blue)
                        OR (m.player_blue_id = p.id AND m.score_blue > m.score_red)
                 ) / NULLIF(COUNT(DISTINCT m.id), 0), 1) AS winrate_pct,
+                # Average possession percentage across all matches played by this player
                 ROUND(AVG(s.possession_pct)::NUMERIC, 1) AS avg_possession,
+                # Average shooting precision percentage across all matches played by this player (shots_on_target / shots_total * 100)
                 ROUND(AVG(CASE WHEN s.shots_total > 0 THEN 100.0 * s.shots_on_target / s.shots_total END)::NUMERIC, 1) AS avg_precision_pct
             FROM players p
             LEFT JOIN matches_1v1 m ON p.id IN (m.player_red_id, m.player_blue_id)
             LEFT JOIN match_player_stats_1v1 s ON s.match_id = m.id AND s.player_id = p.id
             GROUP BY p.id ORDER BY p.elo DESC
         """)
-    return _json([{
+        # player -> matches -> stats
+        # TODO: leaderboard only for 1v1
+    return _resp([{
         "username": r["username"], "display_name": r["display_name"], "elo": r["elo"],
         "matches_played": r["matches_played"], "wins": r["wins"],
         "winrate_pct":       float(r["winrate_pct"])       if r["winrate_pct"]       is not None else None,
@@ -152,32 +162,41 @@ async def api_player_stats(request):
     async with pool.acquire() as conn:
         player = await conn.fetchrow("SELECT id, username, display_name, elo FROM players WHERE username = $1", username)
         if player is None:
-            return _json({"error": "Player not found"}, 404)
+            return _resp({"error": "Player not found"}, 404)
         pid = player["id"]
+        # aggregate stats for this player across all 1v1 matches
         agg = await conn.fetchrow("""
             SELECT COUNT(DISTINCT m.id) AS matches_played,
+                # Nb of wins
                 COUNT(DISTINCT m.id) FILTER (
                     WHERE (m.player_red_id = $1 AND m.score_red > m.score_blue)
                        OR (m.player_blue_id = $1 AND m.score_blue > m.score_red)
                 ) AS wins,
+                # Winrate percentage (wins / matches_played)
                 ROUND(100.0 * COUNT(DISTINCT m.id) FILTER (
                     WHERE (m.player_red_id = $1 AND m.score_red > m.score_blue)
                        OR (m.player_blue_id = $1 AND m.score_blue > m.score_red)
                 ) / NULLIF(COUNT(DISTINCT m.id), 0), 1) AS winrate_pct,
+                # Average possession percentage across all matches
                 ROUND(AVG(s.possession_pct)::NUMERIC, 1) AS avg_possession,
+                # Average shooting precision percentage (shots_on_target / shots_total * 100)
                 ROUND(AVG(CASE WHEN s.shots_total > 0 THEN 100.0 * s.shots_on_target / s.shots_total END)::NUMERIC, 1) AS avg_precision_pct,
+                # Total goals scored (0 if none)
                 COALESCE(SUM(s.goals_scored), 0) AS total_goals,
+                # Average max ball speed across all matches
                 ROUND(AVG(s.max_ball_speed)::NUMERIC, 1) AS avg_max_speed
             FROM matches_1v1 m
             LEFT JOIN match_player_stats_1v1 s ON s.match_id = m.id AND s.player_id = $1
             WHERE m.player_red_id = $1 OR m.player_blue_id = $1
         """, pid)
+        # last 10 1v1 matches
         m1 = await conn.fetch("""
             SELECT score_red, score_blue, played_at, player_red_id,
                 CASE WHEN player_red_id = $1 THEN elo_delta_red ELSE elo_delta_blue END AS elo_delta
             FROM matches_1v1 WHERE player_red_id = $1 OR player_blue_id = $1
             ORDER BY played_at DESC LIMIT 10
         """, pid)
+        # last 10 2v2 matches
         m2 = await conn.fetch("""
             SELECT score_red, score_blue, played_at, player_red_1, player_red_2,
                 CASE WHEN player_red_1 = $1 THEN elo_delta_red_1
@@ -192,19 +211,20 @@ async def api_player_stats(request):
     recent = []
     for m in m1:
         is_red = m["player_red_id"] == pid
-        my, opp = (m["score_red"], m["score_blue"]) if is_red else (m["score_blue"], m["score_red"])
-        recent.append({"mode": "1v1", "score_my_team": my, "score_opp": opp,
-                       "won": my > opp, "draw": my == opp, "elo_delta": m["elo_delta"],
+        me, opp = (m["score_red"], m["score_blue"]) if is_red else (m["score_blue"], m["score_red"])
+        recent.append({"mode": "1v1", "score_my_team": me, "score_opp": opp,
+                       "won": me > opp, "draw": me == opp, "elo_delta": m["elo_delta"],
                        "date": m["played_at"].isoformat()})
     for m in m2:
         is_red = pid in (m["player_red_1"], m["player_red_2"])
-        my, opp = (m["score_red"], m["score_blue"]) if is_red else (m["score_blue"], m["score_red"])
-        recent.append({"mode": "2v2", "score_my_team": my, "score_opp": opp,
-                       "won": my > opp, "draw": my == opp, "elo_delta": m["elo_delta"],
+        me, opp = (m["score_red"], m["score_blue"]) if is_red else (m["score_blue"], m["score_red"])
+        recent.append({"mode": "2v2", "score_my_team": me, "score_opp": opp,
+                       "won": me > opp, "draw": me == opp, "elo_delta": m["elo_delta"],
                        "date": m["played_at"].isoformat()})
+    # merge 1v1 and 2v2 matches sorted by date desc
     recent.sort(key=lambda x: x["date"], reverse=True)
 
-    return _json({
+    return _resp({
         "username": player["username"], "display_name": player["display_name"], "elo": player["elo"],
         "matches_played": agg["matches_played"] or 0,
         "wins": agg["wins"] or 0,

@@ -244,7 +244,7 @@ async def _mm_start_match():
     await broadcast_table_status()
 
 async def handle_lobby(request):
-    session_user = get_session_user_from_request(request)
+    session_user = get_session_user_from_request(request) # usernmae from cookie session
     if not session_user:
         return web.json_response({"error": "Unauthorized"}, status=401)
 

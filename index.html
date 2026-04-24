@@ -1079,8 +1079,9 @@ async function authSubmit() {
     const url = authTab === 'login' ? '/api/auth/login' : '/api/auth/register';
     const body = authTab === 'login' ? { username, password } : { username, display_name, password };
     const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    
     const data = await res.json();
-    if (!res.ok) { authShowError(data.error || 'Erreur inconnue'); return; }
+    if (!res.ok) { authShowError(data.error || 'Erreur inconnue'); return; } // ok = status between 200 and 299
     currentUser = data;
     localStorage.setItem('ka_user', JSON.stringify(currentUser));
     document.getElementById('authOverlay').classList.add('hidden');

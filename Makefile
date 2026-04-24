@@ -95,7 +95,7 @@ deploy-gcloud:
 		--max-instances 1 \
 		--timeout 3600 \
 		--no-cpu-throttling \
-		--set-env-vars DATABASE_URL=$${DATABASE_URL},CORS_ORIGINS=$${CORS_ORIGINS}
+		--set-env-vars DATABASE_URL=$${DATABASE_URL},CORS_ORIGINS=$${CORS_ORIGINS},ENV=$${ENV},SESSION_SECRET=$${SESSION_SECRET}
 
 # 5173 : default React/Vite port
 frontend-dev:
