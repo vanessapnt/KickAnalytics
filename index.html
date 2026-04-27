@@ -1220,7 +1220,7 @@ function startFilming(asPlayer = false) {
 
   if (asPlayer) {
     grantPageAccess('camera');
-    window.location.href = '/camera.html';
+    window.location.href = '/camera';
     return;
   }
 
@@ -1356,7 +1356,7 @@ function ensureLobbyConnected(onLobbyOpen) {
       document.getElementById('cameraPoolPanel').style.display = 'none';
     }
     if (d.type === 'camera_validated' && isFilming && myRole === 'camera') {
-      window.location.href = '/camera.html';
+      window.location.href = '/camera';
     }
     if (d.type === 'elo_update' && d.new_elos && currentUser) {
       const newElo = d.new_elos[currentUser.username];

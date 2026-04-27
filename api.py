@@ -125,21 +125,21 @@ async def api_leaderboard(request):
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT p.id, p.username, p.display_name, p.elo,
-                # Nb of matches played (as red or blue) for this player
+                -- Nb of matches played (as red or blue) for this player
                 COUNT(DISTINCT m.id) AS matches_played,
-                # Nb of wins for this player
+                -- Nb of wins for this player
                 COUNT(DISTINCT m.id) FILTER (
                     WHERE (m.player_red_id  = p.id AND m.score_red  > m.score_blue)
                        OR (m.player_blue_id = p.id AND m.score_blue > m.score_red)
                 ) AS wins,
-                # Winrate percentage (wins / matches_played)
+                -- Winrate percentage (wins / matches_played)
                 ROUND(100.0 * COUNT(DISTINCT m.id) FILTER (
                     WHERE (m.player_red_id  = p.id AND m.score_red  > m.score_blue)
                        OR (m.player_blue_id = p.id AND m.score_blue > m.score_red)
                 ) / NULLIF(COUNT(DISTINCT m.id), 0), 1) AS winrate_pct,
-                # Average possession percentage across all matches played by this player
+                -- Average possession percentage across all matches played by this player
                 ROUND(AVG(s.possession_pct)::NUMERIC, 1) AS avg_possession,
-                # Average shooting precision percentage across all matches played by this player (shots_on_target / shots_total * 100)
+                -- Average shooting precision percentage across all matches played by this player (shots_on_target / shots_total * 100)
                 ROUND(AVG(CASE WHEN s.shots_total > 0 THEN 100.0 * s.shots_on_target / s.shots_total END)::NUMERIC, 1) AS avg_precision_pct
             FROM players p
             LEFT JOIN matches_1v1 m ON p.id IN (m.player_red_id, m.player_blue_id)
@@ -167,23 +167,23 @@ async def api_player_stats(request):
         # aggregate stats for this player across all 1v1 matches
         agg = await conn.fetchrow("""
             SELECT COUNT(DISTINCT m.id) AS matches_played,
-                # Nb of wins
+                -- Nb of wins
                 COUNT(DISTINCT m.id) FILTER (
                     WHERE (m.player_red_id = $1 AND m.score_red > m.score_blue)
                        OR (m.player_blue_id = $1 AND m.score_blue > m.score_red)
                 ) AS wins,
-                # Winrate percentage (wins / matches_played)
+                -- Winrate percentage (wins / matches_played)
                 ROUND(100.0 * COUNT(DISTINCT m.id) FILTER (
                     WHERE (m.player_red_id = $1 AND m.score_red > m.score_blue)
                        OR (m.player_blue_id = $1 AND m.score_blue > m.score_red)
                 ) / NULLIF(COUNT(DISTINCT m.id), 0), 1) AS winrate_pct,
-                # Average possession percentage across all matches
+                -- Average possession percentage across all matches
                 ROUND(AVG(s.possession_pct)::NUMERIC, 1) AS avg_possession,
-                # Average shooting precision percentage (shots_on_target / shots_total * 100)
+                -- Average shooting precision percentage (shots_on_target / shots_total * 100)
                 ROUND(AVG(CASE WHEN s.shots_total > 0 THEN 100.0 * s.shots_on_target / s.shots_total END)::NUMERIC, 1) AS avg_precision_pct,
-                # Total goals scored (0 if none)
+                -- Total goals scored (0 if none)
                 COALESCE(SUM(s.goals_scored), 0) AS total_goals,
-                # Average max ball speed across all matches
+                -- Average max ball speed across all matches
                 ROUND(AVG(s.max_ball_speed)::NUMERIC, 1) AS avg_max_speed
             FROM matches_1v1 m
             LEFT JOIN match_player_stats_1v1 s ON s.match_id = m.id AND s.player_id = $1
