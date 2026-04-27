@@ -17,7 +17,7 @@ info:
 	@echo "   Open       : http://localhost:5173"
 	@echo ""
 	@echo "   If you prefer running manually :"
-	@echo "   Terminal 1 : export \$$(grep -v '^#' .env | xargs) && ENV=development python3 server.py"
+	@echo "   Terminal 1 : export \$$(grep -v '^#' .env | xargs) && ENV=development python3 back/server.py"
 	@echo "   Terminal 2 : cd frontend && npm run dev"
 	@echo ""
 	@echo "🧪 LOCAL TESTING (full Docker stack) :"
@@ -110,7 +110,7 @@ deploy-gcloud: frontend-build
 		--set-env-vars DATABASE_URL=$${DATABASE_URL},CORS_ORIGINS=$${CORS_ORIGINS},ENV=$${ENV},SESSION_SECRET=$${SESSION_SECRET}
 
 dev-server:
-	ENV=development python3 server.py
+	ENV=development python3 back/server.py
 
 dev-frontend:
 	cd frontend && npm run dev
@@ -126,7 +126,7 @@ VIDEO       ?= test.mp4
 SERVER_FPS  ?= 14
 MAX_FRAMES  ?= 500
 test-pipeline:
-	docker run --rm --memory=2g -v $(shell pwd):/app -w /app $(IMAGE_NAME) python3 -u test_pipeline.py $(VIDEO) $(SERVER_FPS) $(MAX_FRAMES)
+	docker run --rm --memory=2g -v $(shell pwd):/app -w /app $(IMAGE_NAME) python3 -u back/test_pipeline.py $(VIDEO) $(SERVER_FPS) $(MAX_FRAMES)
 
 clean:
 	docker ps -q --filter ancestor=$(IMAGE_NAME) | xargs -r docker stop || true

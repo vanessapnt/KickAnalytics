@@ -41,7 +41,7 @@ async def cors_middleware(request, handler):
         resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
     return resp
 
-STATIC_ROOT = Path(__file__).parent
+STATIC_ROOT = Path(__file__).parent.parent
 DIST_ROOT = STATIC_ROOT / "frontend" / "dist"
 USE_REACT = DIST_ROOT.exists()
 

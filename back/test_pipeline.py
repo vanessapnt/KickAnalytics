@@ -169,7 +169,7 @@ def main():
 
     print("[+] Generating HTML...")
     generate_html(results, corners, goal_top, goal_bottom, contacts, attributed, blue_poss, red_poss, goal_rods)
-    print("[+] Done -> test_pipeline.html")
+    print("[+] Done -> frontend/dist/test_pipeline.html")
 
 
 def generate_html(results, corners, goal_top, goal_bottom,
@@ -683,7 +683,9 @@ render(0);
 </body>
 </html>"""
 
-    with open("test_pipeline.html", "w", encoding="utf-8") as f:
+    out = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist", "test_pipeline.html")
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    with open(out, "w", encoding="utf-8") as f:
         f.write(html)
 
 

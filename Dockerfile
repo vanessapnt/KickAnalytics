@@ -8,13 +8,13 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY back/requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN python3 quantize_model.py
+RUN python3 back/quantize_model.py
 
 # ignored by google cloud build, but needed for local testing
 # 8080 : HTTP fichiers statiques
@@ -22,4 +22,4 @@ RUN python3 quantize_model.py
 EXPOSE 8080
 EXPOSE 8081
 
-CMD ["python", "-u", "server.py"]
+CMD ["python", "-u", "back/server.py"]
