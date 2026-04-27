@@ -1437,7 +1437,7 @@ function openController() {
     lobbyWs.send(JSON.stringify({ type: 'mm_become_controller' }));
   }
   grantPageAccess('controller');
-  window.location.href = '/controller.html';
+  window.location.href = '/controller';
 }
 
 function mmLeave() {

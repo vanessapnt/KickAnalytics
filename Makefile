@@ -11,18 +11,30 @@ info:
 	@echo "   make install-ngrok     # Install ngrok + add authtoken"
 	@echo "   make install-gcloud    # Install Google Cloud SDK"
 	@echo ""
-	@echo "🧪 LOCAL TESTING :"
-	@echo "   make test              # Build + run app -> http://localhost:$(HTTP_PORT)"
+	@echo "💻 LOCAL DEV (recommended — no Docker, hot reload) :"
+	@echo "   Terminal 1 : make dev-server     # Python server on :$(HTTP_PORT) (.env loaded automatically)"
+	@echo "   Terminal 2 : make dev-frontend   # Vite dev server on :5173 (hot reload)"
+	@echo "   Open       : http://localhost:5173"
+	@echo ""
+	@echo "   If you prefer running manually :"
+	@echo "   Terminal 1 : export \$$(grep -v '^#' .env | xargs) && ENV=development python3 server.py"
+	@echo "   Terminal 2 : cd frontend && npm run dev"
+	@echo ""
+	@echo "🧪 LOCAL TESTING (full Docker stack) :"
+	@echo "   make test              # Build frontend + Docker image + run -> http://localhost:$(HTTP_PORT)"
 	@echo ""
 	@echo "📱 LOCAL TESTING WITH PHONE :"
 	@echo "   1. make test           # Terminal 1 — start container"
 	@echo "   2. make tunnel         # Terminal 2 — expose to phone"
 	@echo ""
+	@echo "⚛️  REACT FRONTEND :"
+	@echo "   make frontend-build    # Build React -> frontend/dist/ (done automatically by make test)"
+	@echo ""
 	@echo "☁️  GOOGLE CLOUD DEPLOYMENT :"
-	@echo "   1. Configure .env with the PROJECT_ID"
+	@echo "   1. Configure .env with PROJECT_ID"
 	@echo "   2. make install-gcloud # Install Google Cloud SDK"
 	@echo "   3. make gcloud-auth    # Authenticate Google Cloud (once)"
-	@echo "   4. make deploy-gcloud  # Deploy -> Google displays final URL"
+	@echo "   4. make deploy-gcloud  # Build frontend + deploy -> Google displays final URL"
 	@echo ""
 	@echo "🧹 CLEANUP :"
 	@echo "   make clean"
@@ -51,7 +63,7 @@ install-gcloud:
 	curl -sSL https://sdk.cloud.google.com | bash -s -- --disable-prompts
 	@echo "Run: source ~/.bashrc"
 
-build:
+build: frontend-build
 	docker build -t $(IMAGE_NAME) .
 
 run-local:
@@ -81,7 +93,7 @@ configure-gcloud:
 		--timeout 3600 \
 		--no-cpu-throttling
 
-deploy-gcloud:
+deploy-gcloud: frontend-build
 	PATH="$$HOME/google-cloud-sdk/bin:$$PATH" gcloud builds submit --tag gcr.io/$${PROJECT_ID}/$(IMAGE_NAME)
 	PATH="$$HOME/google-cloud-sdk/bin:$$PATH" gcloud run deploy $(IMAGE_NAME) \
 		--image gcr.io/$${PROJECT_ID}/$(IMAGE_NAME) \
@@ -96,6 +108,12 @@ deploy-gcloud:
 		--timeout 3600 \
 		--no-cpu-throttling \
 		--set-env-vars DATABASE_URL=$${DATABASE_URL},CORS_ORIGINS=$${CORS_ORIGINS},ENV=$${ENV},SESSION_SECRET=$${SESSION_SECRET}
+
+dev-server:
+	ENV=development python3 server.py
+
+dev-frontend:
+	cd frontend && npm run dev
 
 # 5173 : default React/Vite port
 frontend-dev:
@@ -115,4 +133,4 @@ clean:
 	docker ps -aq --filter ancestor=$(IMAGE_NAME) | xargs -r docker rm || true
 	docker rmi $(IMAGE_NAME) || true
 
-.PHONY: info test install-docker install-ngrok install-gcloud build run-local tunnel check-gcloud gcloud-auth configure-gcloud deploy-gcloud test-pipeline frontend-dev frontend-build clean
+.PHONY: info test install-docker install-ngrok install-gcloud build run-local tunnel check-gcloud gcloud-auth configure-gcloud deploy-gcloud test-pipeline dev-server dev-frontend frontend-dev frontend-build clean

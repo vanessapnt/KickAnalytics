@@ -42,6 +42,9 @@ async def cors_middleware(request, handler):
     return resp
 
 STATIC_ROOT = Path(__file__).parent
+DIST_ROOT = STATIC_ROOT / "frontend" / "dist"
+USE_REACT = DIST_ROOT.exists()
+
 PUBLIC_HTML_PATHS = {"/", "/index.html"}
 
 def _page_access_cookie_for(path: str):
@@ -53,28 +56,42 @@ def _page_access_cookie_for(path: str):
 
 async def http_file_handler(request):
     request_path = request.path
+
+    REACT_ROUTES = {"/controller"}
+
+    if USE_REACT: # if dist/ exists, React built
+        # Serve Vite build assets (fingerprinted JS/CSS)
+        if request_path.startswith("/assets/") or request_path == "/favicon.ico":
+            asset_path = DIST_ROOT / request_path.lstrip("/")
+            if asset_path.exists() and asset_path.is_file():
+                mime, _ = mimetypes.guess_type(str(asset_path))
+                data = await asyncio.get_event_loop().run_in_executor(None, asset_path.read_bytes)
+                return web.Response(body=data, content_type=mime or "application/octet-stream")
+            return web.Response(status=404, text="Not Found")
+        # Serve index.html for React routes (client-side routing), but only if the path is in REACT_ROUTES to avoid conflicts with legacy HTML files
+        if request_path in REACT_ROUTES:
+            spa_html = DIST_ROOT / "index.html"
+            data = await asyncio.get_event_loop().run_in_executor(None, spa_html.read_bytes)
+            return web.Response(body=data, content_type="text/html")
+
+    # Legacy mode (no dist/ build) — serve raw HTML files with cookie checks
     if request_path.endswith(".html") and request_path not in PUBLIC_HTML_PATHS:
-        if not get_session_user_from_request(request): # checks ka_session cookie -> not logged in
-            raise web.HTTPFound("/") # raise throws an exception that aiohttp catches and turns into redirection response (HTTP 302)
-        expected_cookie = _page_access_cookie_for(request_path) # checks ka_page_access cookie : "controller" or "camera" (single-use before serving the page)
+        if not get_session_user_from_request(request):
+            raise web.HTTPFound("/")
+        expected_cookie = _page_access_cookie_for(request_path)
         if expected_cookie and request.cookies.get("ka_page_access") != expected_cookie:
             raise web.HTTPFound("/")
 
-    # we find the file and read it
     path = request_path if request_path != "/" else "/index.html"
     file_path = STATIC_ROOT / path.lstrip("/")
     if not file_path.exists() or not file_path.is_file():
         return web.Response(status=404, text="Not Found")
-    mime, _ = mimetypes.guess_type(str(file_path)) # guess the type based on the file extension (e.g. .html -> text/html)
+    mime, _ = mimetypes.guess_type(str(file_path))
     loop = asyncio.get_event_loop()
-    # None means to use the default executor bc file_path.read_bytes is blocking
     data = await loop.run_in_executor(None, file_path.read_bytes)
-    
-    # we can return the content
-    response = web.Response(body=data, content_type=mime or "application/octet-stream") #  to download it bc display is impossible (e.g. model.onnx)
+    response = web.Response(body=data, content_type=mime or "application/octet-stream")
     if request_path.endswith(".html") and request_path not in PUBLIC_HTML_PATHS:
         response.del_cookie("ka_page_access")
-        # cookie is single-use, so we delete if after checking it
     return response
 
 async def ws_router(request):

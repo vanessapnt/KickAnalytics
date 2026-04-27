@@ -14,7 +14,6 @@ from config import IS_PROD
 
 COOKIE_NAME = "ka_session"
 SESSION_TTL_SECONDS = int(os.environ.get("SESSION_TTL_SECONDS", "604800"))  # 7 days
-SESSION_SECRET = _load_session_secret()
 
 def _load_session_secret() -> str:
     secret = os.environ.get("SESSION_SECRET", "").strip()
@@ -25,6 +24,8 @@ def _load_session_secret() -> str:
     if IS_PROD:
         raise RuntimeError("SESSION_SECRET is required in production")
     return "dev-change-me-session-secret"
+
+SESSION_SECRET = _load_session_secret()
 
 # cookie only stores text, char like  {, ", :, espaces are not allowed, so we encode the payload and signature using base64url encoding (num, letters, - and _ only)
 def _b64url_encode(data: bytes) -> str:
