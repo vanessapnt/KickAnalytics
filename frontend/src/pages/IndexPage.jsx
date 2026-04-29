@@ -3,43 +3,31 @@ import { getWsBase } from '../utils/wsBase';
 import '../styles/home.css';
 import LiveSection    from '../components/LiveSection';
 import JouerSection   from '../components/JouerSection';
-import AuthOverlay    from '../components/AuthOverlay';
 import ProfileDrawer  from '../components/ProfileDrawer';
 
 export default function IndexPage() {
-  // ── Navigation ─────────────────────────────────────────────────────────────
-  const [activeSection, setActiveSection] = useState('live');
+  const [activeSection, setActiveSection] = useState('home');
 
-  // ── Auth ───────────────────────────────────────────────────────────────────
   const [currentUser, setCurrentUser] = useState(null);
   const currentUserRef = useRef(null);
-  const [showAuthOverlay, setShowAuthOverlay] = useState(false);
-  const [authTab, setAuthTab]       = useState('login');
-  const [authError, setAuthError]   = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-  const authUsernameRef    = useRef(null);
-  const authPasswordRef    = useRef(null);
-  const authDisplayNameRef = useRef(null);
 
-  // ── Profile drawer ─────────────────────────────────────────────────────────
   const [showProfile, setShowProfile]   = useState(false);
-  const [profileStats, setProfileStats] = useState(null); // null = loading, false = error, object = data
+  const [profileStats, setProfileStats] = useState(null);
 
-  // ── Live section ───────────────────────────────────────────────────────────
   const [scoreRed, setScoreRed]     = useState(0);
   const [scoreBlue, setScoreBlue]   = useState(0);
   const [liveStatus, setLiveStatus] = useState({ text: 'Déconnecté', type: '' });
   const [latency, setLatency]       = useState('—');
   const [ballPos, setBallPos]       = useState(null);
   const [showPauseOverlay, setShowPauseOverlay] = useState(false);
-  const [goalFlash, setGoalFlash]   = useState(null);   // { team, rod, key }
+  const [goalFlash, setGoalFlash]   = useState(null);
   const [replayFrames, setReplayFrames] = useState(null);
-  const wsRef = useRef(null); // spectator WebSocket
+  const [goals, setGoals] = useState([]);
+  const matchStartRef = useRef(null);
+  const wsRef = useRef(null);
 
-  // ── Leaderboard ────────────────────────────────────────────────────────────
-  const [leaderboard, setLeaderboard] = useState(null); // null = not loaded, undefined = loading, false = error
+  const [leaderboard, setLeaderboard] = useState(null);
 
-  // ── Jouer section ──────────────────────────────────────────────────────────
   const [mmMode, setMmMode]           = useState('1v1');
   const [tableData, setTableData]     = useState(null);
   const [myRole, setMyRole]           = useState(null);
@@ -56,7 +44,6 @@ export default function IndexPage() {
   const lastTableDataRef  = useRef(null);
   const lastTableStateRef = useRef(null);
 
-  // ── Init ───────────────────────────────────────────────────────────────────
   useEffect(() => {
     const saved = localStorage.getItem('ka_user');
     if (saved) { try { const u = JSON.parse(saved); setCurrentUser(u); currentUserRef.current = u; } catch {} }
@@ -73,7 +60,6 @@ export default function IndexPage() {
     };
   }, []);
 
-  // ── Spectator WebSocket ────────────────────────────────────────────────────
   const renderTableStatus = useCallback((d) => {
     lastTableDataRef.current  = d;
     lastTableStateRef.current = d.state;
@@ -100,7 +86,7 @@ export default function IndexPage() {
       if (d.type === 'camera_ready')       setLiveStatus({ text: '📱 Caméra prête', type: '' });
       if (d.type === 'match_paused')       { setLiveStatus({ text: '⏸ Match en pause', type: 'err' }); setShowPauseOverlay(true); }
       if (d.type === 'camera_resumed')     { setLiveStatus({ text: '▶ Match repris', type: 'ok' }); setShowPauseOverlay(false); }
-      if (d.type === 'calibration_ok')     { setLiveStatus({ text: '🟢 Match en cours', type: 'ok' }); setScoreRed(0); setScoreBlue(0); }
+      if (d.type === 'calibration_ok')     { setLiveStatus({ text: '🟢 Match en cours', type: 'ok' }); setScoreRed(0); setScoreBlue(0); setGoals([]); matchStartRef.current = Date.now(); }
       if (d.type === 'calibration_failed') setLiveStatus({ text: '❌ Calibration échouée', type: 'err' });
       if (d.type === 'position') {
         setBallPos({ x: d.x, y: d.y });
@@ -110,6 +96,8 @@ export default function IndexPage() {
       if (d.type === 'goal' && d.score) {
         setScoreRed(d.score.red); setScoreBlue(d.score.blue);
         setGoalFlash({ team: d.team, rod: d.rod, key: Date.now() });
+        const minute = matchStartRef.current ? Math.max(1, Math.round((Date.now() - matchStartRef.current) / 60000)) : '?';
+        setGoals(prev => [...prev, { team: d.team, minute }]);
       }
       if (d.type === 'match_end') setLiveStatus({ text: '🏁 Match terminé', type: '' });
       if (d.type === 'replay')    setReplayFrames(d.frames);
@@ -119,11 +107,10 @@ export default function IndexPage() {
   const disconnectSpectator = useCallback(() => { wsRef.current?.close(); wsRef.current = null; }, []);
 
   useEffect(() => {
-    if (activeSection === 'live') connectSpectator();
+    if (activeSection === 'live' || activeSection === 'home') connectSpectator();
     else disconnectSpectator();
   }, [activeSection, connectSpectator, disconnectSpectator]);
 
-  // ── Leaderboard ────────────────────────────────────────────────────────────
   const loadLeaderboard = useCallback(async () => {
     setLeaderboard(undefined);
     try {
@@ -135,7 +122,6 @@ export default function IndexPage() {
 
   useEffect(() => { if (activeSection === 'stats') loadLeaderboard(); }, [activeSection, loadLeaderboard]);
 
-  // ── Profile stats ──────────────────────────────────────────────────────────
   const openProfile = useCallback(async () => {
     if (!currentUserRef.current) return;
     setShowProfile(true); setProfileStats(null);
@@ -145,17 +131,7 @@ export default function IndexPage() {
     } catch { setProfileStats(false); }
   }, []);
 
-  // ── Auth ───────────────────────────────────────────────────────────────────
-  const authGuard = useCallback(() => {
-    if (currentUserRef.current) return true;
-    setShowAuthOverlay(true); setAuthTab('login'); setAuthError('');
-    if (authUsernameRef.current)    authUsernameRef.current.value    = '';
-    if (authPasswordRef.current)    authPasswordRef.current.value    = '';
-    if (authDisplayNameRef.current) authDisplayNameRef.current.value = '';
-    return false;
-  }, []);
-
-  const authLogout = useCallback(() => {
+  const logout = useCallback(() => {
     fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     setCurrentUser(null); currentUserRef.current = null;
     localStorage.removeItem('ka_user');
@@ -165,31 +141,9 @@ export default function IndexPage() {
     setBtnMmDisabled(false);
     setMyRole(null); myRoleRef.current = null;
     isFilmingRef.current = false;
+    window.location.href = '/auth';
   }, []);
 
-  const authSubmit = useCallback(async () => {
-    setAuthError('');
-    const username     = authUsernameRef.current?.value.trim().toLowerCase() || '';
-    const password     = authPasswordRef.current?.value || '';
-    const display_name = authDisplayNameRef.current?.value.trim() || '';
-    if (!username || !password) { setAuthError('Remplis tous les champs.'); return; }
-    if (authTab === 'register' && !display_name) { setAuthError('Choisis un nom affiché.'); return; }
-    if (authTab === 'register' && password.length < 6) { setAuthError('Mot de passe trop court (6 min).'); return; }
-    setAuthLoading(true);
-    try {
-      const url  = authTab === 'login' ? '/api/auth/login' : '/api/auth/register';
-      const body = authTab === 'login' ? { username, password } : { username, display_name, password };
-      const res  = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const data = await res.json();
-      if (!res.ok) { setAuthError(data.error || 'Erreur inconnue'); return; } // ok = status between 200 and 299
-      setCurrentUser(data); currentUserRef.current = data;
-      localStorage.setItem('ka_user', JSON.stringify(data));
-      setShowAuthOverlay(false);
-    } catch { setAuthError('Erreur réseau. Réessaie.');
-    } finally { setAuthLoading(false); }
-  }, [authTab]);
-
-  // ── Lobby WebSocket ────────────────────────────────────────────────────────
   function lobbyClose() {
     lobbyWsRef.current?.close(); lobbyWsRef.current = null; pendingCbsRef.current = [];
   }
@@ -238,9 +192,7 @@ export default function IndexPage() {
     };
   }, [renderTableStatus]);
 
-  // ── Jouer actions ──────────────────────────────────────────────────────────
   const startFilming = useCallback((asPlayer = false) => {
-    if (!authGuard()) return;
     if (asPlayer) { document.cookie = 'ka_page_access=camera; Path=/; SameSite=Lax'; window.location.href = '/camera'; return; }
     isFilmingRef.current = true; setMyRole('camera'); myRoleRef.current = 'camera';
     setShowFilmingPanel(true);
@@ -250,7 +202,7 @@ export default function IndexPage() {
       const u = currentUserRef.current || {};
       lobbyWsRef.current?.send(JSON.stringify({ type: 'lobby_film', username: u.username || 'inconnu', display_name: u.display_name || 'Inconnu' }));
     });
-  }, [authGuard, ensureLobbyConnected]);
+  }, [ensureLobbyConnected]);
 
   const stopFilming = useCallback(() => {
     lobbyWsRef.current?.send(JSON.stringify({ type: 'lobby_stop_film' }));
@@ -259,13 +211,12 @@ export default function IndexPage() {
   }, []);
 
   const startMatchmaking = useCallback(() => {
-    if (!authGuard()) return;
     setBtnMmDisabled(true);
     const u = currentUserRef.current;
     ensureLobbyConnected(() => {
       lobbyWsRef.current?.send(JSON.stringify({ type: 'mm_join', username: u.username, display_name: u.display_name, elo: u.elo, mode: mmMode }));
     });
-  }, [authGuard, ensureLobbyConnected, mmMode]);
+  }, [ensureLobbyConnected, mmMode]);
 
   const mmLeave = useCallback(() => {
     lobbyWsRef.current?.send(JSON.stringify({ type: 'mm_leave' }));
@@ -297,7 +248,6 @@ export default function IndexPage() {
     }
   }, [renderTableStatus]);
 
-  // ── Derived ────────────────────────────────────────────────────────────────
   const avatarLetter = currentUser ? (currentUser.display_name || currentUser.username || '?')[0].toUpperCase() : '?';
 
   const cameraPool = (() => {
@@ -306,22 +256,89 @@ export default function IndexPage() {
     return tableData.camera_pool.filter(c => { if (seen.has(c.username)) return false; seen.add(c.username); return true; });
   })();
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const redPlayer  = tableData?.room?.players?.[0];
+  const bluePlayer = tableData?.room?.players?.[1];
+
   return (
     <>
       <header>
         <div className="logo">KickAnalytics</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div className="live-badge"><span className="live-dot"></span>EN DIRECT</div>
-          {currentUser && <button className="header-avatar" onClick={openProfile} title="Mon compte">{avatarLetter}</button>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button className="header-avatar" onClick={openProfile} title="Mon compte">{avatarLetter}</button>
+          <button onClick={logout} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', borderRadius: '20px', padding: '5px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'sans-serif' }}>
+            Déconnexion
+          </button>
         </div>
       </header>
 
-      <nav>
-        <button className={activeSection === 'live'  ? 'active' : ''} onClick={() => switchSection('live')}>Live</button>
-        <button className={activeSection === 'jouer' ? 'active' : ''} onClick={() => switchSection('jouer')}>Jouer</button>
-        <button className={activeSection === 'stats' ? 'active' : ''} onClick={() => switchSection('stats')}>Classement</button>
-      </nav>
+      {activeSection === 'home' && (
+        <div className="section active">
+          <div className="page-content" style={{ paddingTop: '16px' }}>
+
+            {/* Match card */}
+            <div className="match-card" style={{ background: '#1a3a8a' }}>
+              <div className="match-card-gradient" />
+              <div className="match-card-inner">
+
+                {/* Header — just KickAnalytics centered */}
+                <h2 className="match-card-title">KickAnalytics</h2>
+
+                {/* Score grid */}
+                <div className="match-score-grid">
+                  <p className="match-player-name">{redPlayer?.display_name || 'Rouge'}</p>
+                  <div className="match-score-center">
+                    <span className="match-date">
+                      {new Date().toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    </span>
+                    <div className="match-score-row">
+                      <span className="match-score-num">{scoreRed}</span>
+                      <span className="match-vs">VS</span>
+                      <span className="match-score-num">{scoreBlue}</span>
+                    </div>
+                  </div>
+                  <p className="match-player-name">{bluePlayer?.display_name || 'Bleu'}</p>
+                </div>
+
+                {/* Goal scorers — two columns separated by ⚽ */}
+                {goals.length > 0 && (
+                  <div className="match-goals-list">
+                    {(() => {
+                      const redGoals  = goals.filter(g => g.team === 'red');
+                      const blueGoals = goals.filter(g => g.team === 'blue');
+                      const rows = Math.max(redGoals.length, blueGoals.length);
+                      return Array.from({ length: rows }).map((_, i) => (
+                        <div key={i} className="match-goal-row">
+                          <span className="match-goal-red">
+                            {redGoals[i] ? `${redPlayer?.display_name || 'Rouge'} ${redGoals[i].minute}'` : ''}
+                          </span>
+                          <span>⚽</span>
+                          <span className="match-goal-blue">
+                            {blueGoals[i] ? `${blueGoals[i].minute}' ${bluePlayer?.display_name || 'Bleu'}` : ''}
+                          </span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                )}
+
+                {/* Watch Now */}
+                <button className="match-watch-btn" onClick={() => switchSection('live')}>
+                  WATCH NOW
+                </button>
+              </div>
+            </div>
+
+            {/* Table status card */}
+            <div className="match-table-card" style={{ background: '#0d1b3e', color: 'white' }}>
+              <div className="match-table-title">État de la table</div>
+              <div className="match-table-state">
+                {{ free: '🟢 Libre', matchmaking: '🟡 Matchmaking en cours', waiting_camera: '🟠 En attente d\'une caméra', calibrating: '🔵 Calibration…', playing: '🔴 Match en cours', paused: '⏸ Pause' }[tableData?.state] || '— Connexion…'}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {activeSection === 'live' && (
         <LiveSection
@@ -342,7 +359,6 @@ export default function IndexPage() {
           onMmLeave={mmLeave} onOpenController={openController}
           onSelectCamera={(u) => lobbyWsRef.current?.send(JSON.stringify({ type: 'select_camera', username: u }))}
           onKickCamera={(u) => lobbyWsRef.current?.send(JSON.stringify({ type: 'kick_camera', username: u }))}
-          onLogout={authLogout}
         />
       )}
 
@@ -375,20 +391,15 @@ export default function IndexPage() {
       )}
 
       <footer>
-        <button className={activeSection === 'live'  ? 'active' : ''} onClick={() => switchSection('live')}><span className="icon">⚽</span>Live</button>
-        <button className={activeSection === 'jouer' ? 'active' : ''} onClick={() => switchSection('jouer')}><span className="icon">🎮</span>Jouer</button>
-        <button className={activeSection === 'stats' ? 'active' : ''} onClick={() => switchSection('stats')}><span className="icon">🏆</span>Classement</button>
+        <button className={activeSection === 'home'  ? 'active' : ''} onClick={() => switchSection('home')} ><span className="icon">🏠</span>Home</button>
+        <button className={activeSection === 'live'  ? 'active' : ''} onClick={() => switchSection('live')} ><span className="icon">📺</span>Live</button>
+        <button className={activeSection === 'jouer' ? 'active' : ''} onClick={() => switchSection('jouer')}><span className="icon">🎮</span>Play</button>
+        <button className={activeSection === 'stats' ? 'active' : ''} onClick={() => switchSection('stats')}><span className="icon">🏆</span>Leaderboard</button>
       </footer>
-
-      <AuthOverlay
-        show={showAuthOverlay} tab={authTab} error={authError} loading={authLoading}
-        onTabSwitch={(t) => { setAuthTab(t); setAuthError(''); }} onSubmit={authSubmit}
-        usernameRef={authUsernameRef} passwordRef={authPasswordRef} displayNameRef={authDisplayNameRef}
-      />
 
       <ProfileDrawer
         show={showProfile} currentUser={currentUser} stats={profileStats}
-        onClose={() => setShowProfile(false)} onLogout={authLogout}
+        onClose={() => setShowProfile(false)} onLogout={logout}
       />
     </>
   );

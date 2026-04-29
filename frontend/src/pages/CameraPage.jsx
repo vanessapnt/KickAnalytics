@@ -42,7 +42,7 @@ export default function CameraPage() {
     pCtx.lineTo(br[0], br[1]);
     pCtx.lineTo(bl[0], bl[1]);
     pCtx.closePath();
-    pCtx.strokeStyle = '#e50914';
+    pCtx.strokeStyle = '#083879';
     pCtx.lineWidth   = 4;
     pCtx.stroke();
     setPreviewMode('active');

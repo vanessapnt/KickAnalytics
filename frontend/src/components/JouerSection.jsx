@@ -6,14 +6,14 @@ const TABLE_LABELS = {
   playing:        ['🔴 Match en cours', 'Match en cours'],
   paused:         ['⏸ Pause',           'Caméra déconnectée, en pause'],
 };
-const COLORS = ['#e50914', '#1565c0', '#2e7d32', '#f57f17'];
+const COLORS = ['#083879', '#1565c0', '#2e7d32', '#f57f17'];
 
 export default function JouerSection({
   currentUser, myRole, mmMode, tableData,
   showFilmingPanel, showMmPanel, showRolePanel, showCameraPoolPanel,
   mmPanelData, cameraPool, btnMmDisabled,
   onSetMmMode, onStartFilming, onStopFilming, onStartMatchmaking,
-  onMmReady, onMmLeave, onOpenController, onSelectCamera, onKickCamera, onLogout,
+  onMmReady, onMmLeave, onOpenController, onSelectCamera, onKickCamera,
 }) {
   const mmPlayers = mmPanelData?.players ?? [];
   const mmNeeded  = mmPanelData?.needed  ?? 0;
@@ -22,16 +22,6 @@ export default function JouerSection({
   return (
     <div className="section active">
       <div className="page-content" style={{ maxWidth: '520px' }}>
-
-        {currentUser && (
-          <div className="auth-user-bar" style={{ marginBottom: '16px' }}>
-            <div className="user-info">
-              <span className="user-name">{currentUser.display_name} (@{currentUser.username})</span>
-              <span className="user-elo">ELO {currentUser.elo}</span>
-            </div>
-            <button className="btn-logout" onClick={onLogout}>Déconnexion</button>
-          </div>
-        )}
 
         {!showFilmingPanel && !showRolePanel && (
           <>
@@ -88,7 +78,7 @@ export default function JouerSection({
               {cameraPool.length === 0 && <div className="mm-slot">Aucune caméra disponible…</div>}
               {cameraPool.map(cam => (
                 <div key={cam.username} className="mm-player-row">
-                  <div className="mm-avatar" style={{ background: '#e50914' }}>📷</div>
+                  <div className="mm-avatar" style={{ background: '#083879' }}>📷</div>
                   <span className="mm-player-name">{cam.display_name}</span>
                   <span className="mm-player-elo">@{cam.username}</span>
                   <button className="btn-red" style={{ width: 'auto', padding: '6px 14px', fontSize: '12px' }} onClick={() => onSelectCamera(cam.username)}>Valider</button>

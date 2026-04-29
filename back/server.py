@@ -45,7 +45,7 @@ STATIC_ROOT = Path(__file__).parent.parent
 DIST_ROOT = STATIC_ROOT / "frontend" / "dist"
 USE_REACT = DIST_ROOT.exists()
 
-PUBLIC_HTML_PATHS = {"/", "/index.html"}
+PUBLIC_HTML_PATHS = {"/", "/index.html", "/test_pipeline.html"}
 
 def _page_access_cookie_for(path: str):
     if path.endswith("controller.html"):
@@ -57,7 +57,7 @@ def _page_access_cookie_for(path: str):
 async def http_file_handler(request):
     request_path = request.path
 
-    REACT_ROUTES = {"/", "/controller", "/camera"}
+    REACT_ROUTES = {"/", "/auth", "/controller", "/camera"}
 
     if USE_REACT: # if dist/ exists, React built
         # Serve Vite build assets (fingerprinted JS/CSS)
@@ -82,9 +82,11 @@ async def http_file_handler(request):
         if expected_cookie and request.cookies.get("ka_page_access") != expected_cookie:
             raise web.HTTPFound("/")
 
-    # we find the file and read it
+    # we find the file and read it (check project root first, then dist/)
     path = request_path if request_path != "/" else "/index.html"
     file_path = STATIC_ROOT / path.lstrip("/")
+    if not file_path.exists() or not file_path.is_file():
+        file_path = DIST_ROOT / path.lstrip("/")
     if not file_path.exists() or not file_path.is_file():
         return web.Response(status=404, text="Not Found")
     mime, _ = mimetypes.guess_type(str(file_path)) # guess the type based on the file extension (e.g. .html -> text/html)

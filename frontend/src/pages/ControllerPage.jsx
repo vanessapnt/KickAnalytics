@@ -142,7 +142,7 @@ export default function ControllerPage() {
                 <button
                   className="btn-outline"
                   onClick={ctrl.stopMatch}
-                  style={{ borderColor: '#e50914', color: '#e50914' }}
+                  style={{ borderColor: '#083879', color: '#083879' }}
                 >
                   ⏹ Arrêter le match
                 </button>
