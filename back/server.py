@@ -7,11 +7,11 @@ from config import PORT
 from db import init_db, close_db
 import state
 from handlers import handle_camera, handle_controller, handle_spectator, inference_worker
-from matchmaking import handle_lobby
 from auth_session import get_session_user_from_request
 from api import (
     api_auth_register, api_auth_login, api_auth_logout,
     api_leaderboard, api_player_stats, api_debug_dump_sets,
+    api_create_match, api_pending_invites, api_accept_invite, api_start_match, api_me,
 )
 
 # Comma-separated list of allowed origins, e.g.: CORS_ORIGINS=https://kickanalytics.pages.dev,http://localhost:5173
@@ -105,7 +105,6 @@ async def ws_router(request):
     path = request.path
     if "/camera" in path: return await handle_camera(request)
     if "/controller" in path: return await handle_controller(request)
-    if "/lobby" in path: return await handle_lobby(request)
     return await handle_spectator(request)
 
 async def main():
@@ -131,7 +130,12 @@ async def main():
     app.router.add_route("POST", "/api/auth/login", api_auth_login)
     app.router.add_route("POST", "/api/auth/logout", api_auth_logout)
     app.router.add_route("GET", "/api/leaderboard", api_leaderboard)
-    app.router.add_route("GET", "/api/players/{username}/stats", api_player_stats)
+    app.router.add_route("GET",  "/api/players/{username}/stats", api_player_stats)
+    app.router.add_route("GET",  "/api/me", api_me)
+    app.router.add_route("POST", "/api/matches/create", api_create_match)
+    app.router.add_route("GET",  "/api/invites/pending", api_pending_invites)
+    app.router.add_route("POST", "/api/invites/{match_id}/accept", api_accept_invite)
+    app.router.add_route("POST", "/api/matches/{match_id}/start", api_start_match)
 
     app.router.add_route("POST", "/api/debug/dump-sets", api_debug_dump_sets)
     

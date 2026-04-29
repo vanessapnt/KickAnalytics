@@ -28,7 +28,6 @@ def decode_base64_to_cv2(image_b64):
 def compute_stats():
     if len(state.ball_history) < 2:
         return {}
-    # Convert canvas pixels to real-world centimeters, then speed to km/h.
     x_cm_per_px = FIELD_W / CANVAS_W
     y_cm_per_px = (FIELD_H + 2 * GOAL_DEPTH_CM) / CANVAS_H
     speeds, max_speed = [], 0
@@ -43,16 +42,13 @@ def compute_stats():
         speeds.append(speed)
         if speed > max_speed:
             max_speed = speed
-    return {
-        "avg_speed": sum(speeds)/len(speeds),
-        "max_speed": max_speed,
-    }
+    return {"avg_speed": sum(speeds)/len(speeds), "max_speed": max_speed}
 
 async def save_match_end(score: dict, stats: dict):
-    red_users = state.current_match.get("red", [])
+    red_users  = state.current_match.get("red", [])
     blue_users = state.current_match.get("blue", [])
     match_mode = state.current_match.get("mode", "1v1")
-    p_roles = state.current_match.get("roles", {"red": [], "blue": []})
+    p_roles    = state.current_match.get("roles", {"red": [], "blue": []})
 
     if not red_users or not blue_users:
         print("[DB] Players not defined, match not saved"); return
@@ -62,7 +58,7 @@ async def save_match_end(score: dict, stats: dict):
         print("[DB] Pool not initialized, match not saved"); return
 
     async with pool.acquire() as conn:
-        elos_red = [await conn.fetchval("SELECT elo FROM players WHERE username=$1", u) for u in red_users]
+        elos_red  = [await conn.fetchval("SELECT elo FROM players WHERE username=$1", u) for u in red_users]
         elos_blue = [await conn.fetchval("SELECT elo FROM players WHERE username=$1", u) for u in blue_users]
 
     if any(e is None for e in elos_red + elos_blue):
@@ -81,49 +77,45 @@ async def save_match_end(score: dict, stats: dict):
 
     if not is_2v2:
         players_info = [
-            {"username": red_users[0], "team": "red", "role": "solo",
-             "goals_scored":    _pstat("red",  "solo", "goals"),
-             "shots_total":     _pstat("red",  "solo", "shots_total"),
+            {"username": red_users[0],  "team": "red",  "role": "solo",
+             "goals_scored": _pstat("red",  "solo", "goals"),
+             "shots_total":  _pstat("red",  "solo", "shots_total"),
              "shots_on_target": _pstat("red",  "solo", "shots_on_target"),
-             "saves":           _pstat("red",  "solo", "saves"),
-             "possession_pct":  red_poss,
-             "max_ball_speed":  stats.get("max_speed", 0)},
+             "saves": _pstat("red",  "solo", "saves"),
+             "possession_pct": red_poss,  "max_ball_speed": stats.get("max_speed", 0)},
             {"username": blue_users[0], "team": "blue", "role": "solo",
-             "goals_scored":    _pstat("blue", "solo", "goals"),
-             "shots_total":     _pstat("blue", "solo", "shots_total"),
+             "goals_scored": _pstat("blue", "solo", "goals"),
+             "shots_total":  _pstat("blue", "solo", "shots_total"),
              "shots_on_target": _pstat("blue", "solo", "shots_on_target"),
-             "saves":           _pstat("blue", "solo", "saves"),
-             "possession_pct":  blue_poss,
-             "max_ball_speed":  stats.get("max_speed", 0)},
+             "saves": _pstat("blue", "solo", "saves"),
+             "possession_pct": blue_poss, "max_ball_speed": stats.get("max_speed", 0)},
         ]
         elo_broadcast = {
             "mode": "1v1",
-            "red": [{"username": red_users[0], "delta": elo_deltas["red"]}],
-            "blue": [{"username": blue_users[0], "delta": elo_deltas["blue"]}],
+            "red":  [{"username": red_users[0],  "delta": elo_deltas["red"]}],
+            "blue": [{"username": blue_users[0],  "delta": elo_deltas["blue"]}],
         }
     else:
         red_roles, blue_roles = p_roles.get("red", ["attacker","defender"]), p_roles.get("blue", ["attacker","defender"])
         players_info = []
         for u, role in zip(red_users, red_roles):
             players_info.append({"username": u, "team": "red", "role": role,
-                "goals_scored":    _pstat("red",  role, "goals"),
-                "shots_total":     _pstat("red",  role, "shots_total"),
-                "shots_on_target": _pstat("red",  role, "shots_on_target"),
-                "saves":           _pstat("red",  role, "saves"),
-                "possession_pct":  red_poss,
-                "max_ball_speed":  stats.get("max_speed", 0)})
+                "goals_scored": _pstat("red", role, "goals"),
+                "shots_total":  _pstat("red", role, "shots_total"),
+                "shots_on_target": _pstat("red", role, "shots_on_target"),
+                "saves": _pstat("red", role, "saves"),
+                "possession_pct": red_poss, "max_ball_speed": stats.get("max_speed", 0)})
         for u, role in zip(blue_users, blue_roles):
             players_info.append({"username": u, "team": "blue", "role": role,
-                "goals_scored":    _pstat("blue", role, "goals"),
-                "shots_total":     _pstat("blue", role, "shots_total"),
+                "goals_scored": _pstat("blue", role, "goals"),
+                "shots_total":  _pstat("blue", role, "shots_total"),
                 "shots_on_target": _pstat("blue", role, "shots_on_target"),
-                "saves":           _pstat("blue", role, "saves"),
-                "possession_pct":  blue_poss,
-                "max_ball_speed":  stats.get("max_speed", 0)})
+                "saves": _pstat("blue", role, "saves"),
+                "possession_pct": blue_poss, "max_ball_speed": stats.get("max_speed", 0)})
         elo_broadcast = {
             "mode": "2v2",
-            "red":  [{"username": red_users[0], "delta": elo_deltas.get("red_1", 0)},
-                     {"username": red_users[1], "delta": elo_deltas.get("red_2", 0)}],
+            "red":  [{"username": red_users[0],  "delta": elo_deltas.get("red_1",  0)},
+                     {"username": red_users[1],  "delta": elo_deltas.get("red_2",  0)}],
             "blue": [{"username": blue_users[0], "delta": elo_deltas.get("blue_1", 0)},
                      {"username": blue_users[1], "delta": elo_deltas.get("blue_2", 0)}],
         }
@@ -137,12 +129,19 @@ async def save_match_end(score: dict, stats: dict):
     elo_update_msg = {"type": "elo_update", **elo_broadcast, "new_elos": new_elos}
     await broadcast(state.spectators, elo_update_msg)
     await broadcast(state.controllers, elo_update_msg)
-    if state.matchmaking_room:
-        for p in state.matchmaking_room["players"]:
-            try: await p["ws"].send_str(json.dumps(elo_update_msg))
-            except: pass
 
-    await handle_camera_end()
+    state.table_state = "free"
+    await broadcast(state.spectators, {"type": "table_status", "state": "free"})
+    await broadcast(state.controllers, {"type": "table_status", "state": "free"})
+
+async def _force_end_match():
+    state.match_over = True
+    state.table_state = "free"
+    stats = compute_stats()
+    score = dict(game.score)
+    await broadcast(state.spectators, {"type": "match_end", "score": score, "stats": stats, "reason": "force_ended"})
+    await broadcast(state.controllers, {"type": "match_end", "score": score, "stats": stats, "reason": "force_ended"})
+    asyncio.create_task(save_match_end(score, stats))
 
 async def inference_worker():
     loop = asyncio.get_event_loop()
@@ -204,8 +203,7 @@ def _find_goal_frame_index(buffer, goal_ts):
         return None
     if goal_ts is None:
         return len(buffer) - 1
-    best_idx = None
-    best_dist = None
+    best_idx, best_dist = None, None
     for i, item in enumerate(buffer):
         ts = item.get("ts")
         if ts is None:
@@ -227,7 +225,7 @@ async def send_replay_around_goal(goal_ts, n_before, n_after):
         after_count = len(buffer) - goal_idx - 1
         if after_count >= n_after or time.time() >= deadline:
             start = max(0, goal_idx - n_before)
-            end = min(len(buffer), goal_idx + n_after + 1)
+            end   = min(len(buffer), goal_idx + n_after + 1)
             replay_frames = [item["image"] for item in buffer[start:end]]
             if replay_frames:
                 await broadcast(state.spectators, {"type": "replay", "frames": replay_frames})
@@ -278,50 +276,37 @@ async def process_camera_message(ws, msg):
         await broadcast(state.spectators, {"type": "calibration_failed"})
 
 async def handle_camera(request):
-    from matchmaking import camera_joined, camera_left
-
     session_user = get_session_user_from_request(request)
     if not session_user:
         return web.json_response({"error": "Unauthorized"}, status=401)
 
-    username = (session_user.get("username") or "inconnu").strip().lower()
+    username = (session_user.get("username") or "").strip().lower()
+    if username not in ADMIN_USERNAMES:
+        return web.json_response({"error": "Forbidden"}, status=403)
 
-    # Allow the currently validated camera, and also allow a matchmaking player
-    # to connect during active camera phases so camera_joined can auto-validate.
-    is_validated_camera = (state.validated_camera_username == username)
-    is_matchmaking_player = (
-        state.matchmaking_room and
-        any(p["username"] == username for p in state.matchmaking_room.get("players", []))
-    )
-    active_camera_phase = state.table_state in ("waiting_camera", "calibrating", "playing")
-
-    if active_camera_phase and not (is_validated_camera or is_matchmaking_player):
-        return web.json_response({"error": "Not allowed camera for this match"}, status=403)
-
-    # no new in Python, just call the constructor to create the server ws
     ws = web.WebSocketResponse(heartbeat=20, max_msg_size=10*1024*1024)
-    # sends 101 OK UPGRADE http -> ws
     await ws.prepare(request)
 
-    state.cameras.add(ws) # WebSocketResponse object
-
-    display_name = (session_user.get("display_name") or username).strip() or username
-    await camera_joined(ws, username, display_name)
+    state.cameras.add(ws)
+    state.camera_ws = ws
+    print(f"[CAM] {username} connected")
 
     try:
         async for msg in ws:
             if msg.type == WSMsgType.TEXT:
                 data = json.loads(msg.data)
-                msg_type = data.get("type")
-
-                if msg_type in ("frame", "calibration_frame", "calibration_preview", "calibration_failed"):
+                if data.get("type") in ("frame", "calibration_frame", "calibration_preview", "calibration_failed"):
                     await process_camera_message(ws, msg.data)
-
             elif msg.type in (WSMsgType.ERROR, WSMsgType.CLOSE):
                 break
     finally:
         state.cameras.discard(ws)
-        await camera_left(ws)
+        if state.camera_ws is ws:
+            state.camera_ws = None
+        if not state.match_over and state.table_state == "playing":
+            await broadcast(state.spectators, {"type": "match_paused", "reason": "camera_disconnected"})
+            await broadcast(state.controllers, {"type": "match_paused", "reason": "camera_disconnected"})
+        print(f"[CAM] {username} disconnected")
     return ws
 
 async def handle_controller(request):
@@ -329,80 +314,41 @@ async def handle_controller(request):
     if not session_user:
         return web.json_response({"error": "Unauthorized"}, status=401)
 
-    username = (session_user.get("username") or "").strip().lower()
-    display_name = (session_user.get("display_name") or username).strip() or username
-
-    # Keep controller WS alive through idle phases (no user input during match).
-    ws = web.WebSocketResponse(heartbeat=20) # every 20 sec
+    ws = web.WebSocketResponse(heartbeat=20)
     await ws.prepare(request)
     state.controllers.add(ws)
 
-    if username:
-        state.ws_players[ws] = {"username": username, "display_name": display_name, "elo": 1000}
-        if state.matchmaking_room:
-            for player in state.matchmaking_room["players"]:
-                if player["username"] == username and player["ws"] is None:
-                    player["ws"] = ws
-                    break
+    await ws.send_str(json.dumps({
+        "type": "table_status",
+        "state": state.table_state,
+        "camera_connected": state.camera_ws is not None and not state.camera_ws.closed,
+        "match": state.current_match,
+    }))
 
-    from matchmaking import table_status_payload
-    await ws.send_str(json.dumps(table_status_payload()))
-    cam_ws = state.validated_camera_ws
-    cam_username = state.validated_camera_username
-    if cam_username and (cam_ws is None or cam_ws.closed):
-        await ws.send_str(json.dumps({
-            "type": "camera_selected",
-            "camera": {"username": cam_username, "display_name": cam_username},
-        }))
-    elif cam_ws and not cam_ws.closed:
-        cam_info = state.camera_pool.get(cam_ws, {})
-        await ws.send_str(json.dumps({
-            "type": "camera_selected",
-            "camera": {
-                "username": cam_username or cam_info.get("username", ""),
-                "display_name": cam_info.get("display_name", ""),
-            }
-        }))
     try:
         async for msg in ws:
             if msg.type == WSMsgType.TEXT:
                 data = json.loads(msg.data)
                 msg_type = data.get("type")
+
                 if msg_type == "trigger_calibration":
-                    cam = state.validated_camera_ws
-                    if cam is None or cam.closed:
-                        cam = next((w for w in state.camera_pool if not w.closed), None)
-                        if cam:
-                            state.validated_camera_ws = cam
-                            state.validated_camera_username = state.camera_pool[cam]["username"]
+                    cam = state.camera_ws
                     if cam and not cam.closed:
                         state.match_over = False
                         await cam.send_str(json.dumps({"type": "start_calibration"}))
-                        print(f"[CTRL] start_calibration sent to {state.validated_camera_username}")
                     else:
-                        print("[CTRL] trigger_calibration: no camera available")
-                elif msg_type == "set_players":
-                    state.current_match["mode"] = data.get("mode", "1v1")
-                    state.current_match["red"] = data.get("red", [])
-                    state.current_match["blue"] = data.get("blue", [])
-                    state.current_match["roles"] = data.get("roles", {"red": [], "blue": []})
-                    print(f"[MATCH] Mode={state.current_match['mode']} Red={state.current_match['red']} Blue={state.current_match['blue']}")
-                elif msg_type == "force_end_match":
-                    if not state.match_over:
-                        from matchmaking import _force_end_match
-                        await _force_end_match(keep_room=True)
+                        await ws.send_str(json.dumps({"type": "error", "error": "No camera connected"}))
 
-                elif msg_type == "mm_leave_match":
-                    from matchmaking import _mm_remove_player_by_username
-                    await _mm_remove_player_by_username(username)
-                    await ws.close()
-                    continue
+                elif msg_type == "set_players":
+                    state.current_match["mode"]  = data.get("mode", "1v1")
+                    state.current_match["red"]   = data.get("red", [])
+                    state.current_match["blue"]  = data.get("blue", [])
+                    state.current_match["roles"] = data.get("roles", {"red": [], "blue": []})
 
                 elif msg_type == "confirm_calibration":
                     ok = confirm_calibration()
                     if ok:
                         state.match_over = False
-                        state.match_paused = False
                         state.table_state = "playing"
                         state.ball_history.clear()
                         state.goal_events.clear()
@@ -410,33 +356,23 @@ async def handle_controller(request):
                         game.score["red"] = 0
                         game.score["blue"] = 0
                         game.ball_in_goal = False
-                        if state.validated_camera_ws and not state.validated_camera_ws.closed:
-                            await state.validated_camera_ws.send_str(json.dumps({"type": "calibration_ok"}))
+                        if state.camera_ws and not state.camera_ws.closed:
+                            await state.camera_ws.send_str(json.dumps({"type": "calibration_ok"}))
                         await broadcast(state.controllers, {"type": "calibration_ok"})
                         await broadcast(state.spectators, {"type": "calibration_ok"})
                     else:
                         await broadcast(state.controllers, {"type": "calibration_failed"})
+
+                elif msg_type == "force_end_match":
+                    if not state.match_over:
+                        await _force_end_match()
+
             elif msg.type in (WSMsgType.ERROR, WSMsgType.CLOSE):
                 break
     finally:
         state.controllers.discard(ws)
-
-        from matchmaking import _force_end_match, _mm_remove_player_by_username
-
-        player_info = state.ws_players.pop(ws, {})
-        username = player_info.get("username", "")
-        is_active_in_room = (
-            state.matchmaking_room and
-            any(p["username"] == username and p["ws"] is ws for p in state.matchmaking_room.get("players", []))
-        )
-        if is_active_in_room:
-            if state.table_state in ("playing", "calibrating") and not state.match_over:
-                print(f"[CTRL] Player {username} disconnected during match -> forcing end")
-                await _force_end_match()
-            else:
-                print(f"[CTRL] Player {username} disconnected -> removing from room")
-                await _mm_remove_player_by_username(username)
-
+        if not state.match_over and state.table_state in ("playing", "calibrating"):
+            await _force_end_match()
     return ws
 
 async def handle_spectator(request):
@@ -444,20 +380,44 @@ async def handle_spectator(request):
         session_user = get_session_user_from_request(request)
         if not session_user:
             return web.json_response({"error": "Unauthorized"}, status=401)
+    else:
+        session_user = get_session_user_from_request(request)
+
+    username = (session_user or {}).get("username", "").strip().lower()
 
     ws = web.WebSocketResponse(heartbeat=20)
     await ws.prepare(request)
     state.spectators.add(ws)
+    if username:
+        state.spectator_users[ws] = username
+
+    # Push any pending invite immediately on connect
+    if username:
+        pool = get_pool()
+        if pool:
+            async with pool.acquire() as conn:
+                invite = await conn.fetchrow(
+                    """SELECT pm.id, pm.created_by, pm.red_players, pm.blue_players
+                       FROM match_invites mi
+                       JOIN pending_matches pm ON pm.id = mi.match_id
+                       WHERE mi.username = $1 AND mi.status = 'pending' AND pm.status = 'pending'
+                       ORDER BY pm.created_at DESC LIMIT 1""",
+                    username
+                )
+            if invite:
+                await ws.send_str(json.dumps({
+                    "type": "match_invite",
+                    "match_id": str(invite["id"]),
+                    "created_by": invite["created_by"],
+                    "red_players": list(invite["red_players"]),
+                    "blue_players": list(invite["blue_players"]),
+                }))
+
     try:
         async for msg in ws:
             if msg.type in (WSMsgType.ERROR, WSMsgType.CLOSE):
                 break
     finally:
         state.spectators.discard(ws)
+        state.spectator_users.pop(ws, None)
     return ws
-
-async def handle_camera_end():
-    state.validated_camera_ws = None
-    state.validated_camera_username = None
-    from matchmaking import broadcast_table_status
-    await broadcast_table_status()

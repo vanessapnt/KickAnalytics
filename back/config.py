@@ -25,5 +25,5 @@ CANVAS_H      = FIELD_H_PX + 2 * GOAL_DEPTH_PX
 FIELD_Y0 = GOAL_DEPTH_PX
 FIELD_Y1 = FIELD_Y0 + FIELD_H_PX
 
-ADMIN_USERNAMES = set(os.environ.get("ADMIN_USERNAMES", "").split(","))
+ADMIN_USERNAMES = {u.strip().lower() for u in os.environ.get("ADMIN_USERNAMES", "").split(",") if u.strip()}
 ENABLE_DEBUG_STATE_DUMP = os.environ.get('ENABLE_DEBUG_STATE_DUMP', '1' if not IS_PROD else '0').strip().lower() in ('1', 'true', 'yes', 'on')

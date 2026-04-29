@@ -4,9 +4,8 @@ GOALS_TO_WIN = 5
 REPLAY_BUFFER_SIZE = 30
 
 match_over: bool = False
-match_paused: bool = False
 ball_history: list = []
-goal_events: list = []   # [{team, ts}] – one entry per goal, in match order
+goal_events: list = []
 frame_replay_buffer: list = []
 replay_in_progress: bool = False
 
@@ -16,17 +15,13 @@ current_match: dict = {
     "blue": [],
     "roles": {"red": [], "blue": []},
 }
-cameras: set = set() # set of all the camera websocket connections (validated or not)
+
+cameras: set = set()
+camera_ws = None
 controllers: set = set()
 spectators: set = set()
-
-camera_pool: dict = {} # for ux purposes and selection (only 3)
-
-validated_camera_ws = None # only one, if closed we stop the game
-validated_camera_username = None
+spectator_users: dict = {}
 
 table_state: str = "free"
-matchmaking_room: dict = None
-ws_players: dict = {}
 
 frame_queue: asyncio.Queue = None
