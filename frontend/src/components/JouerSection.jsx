@@ -20,7 +20,6 @@ const TABLE_LABELS = {
 };
 
 export default function JouerSection({ currentUser, tableData, pendingInvite, acceptedUsernames, onAcceptInvite, onMatchStarted, onReset }) {
-  const [view, setView]       = useState('select'); // 'select' | 'create'
   const [mode, setMode]       = useState(null);
   const [values, setValues]   = useState({ r0: '', r1: '', b0: '', b1: '' });
   const [matchId, setMatchId] = useState(null);
@@ -84,7 +83,6 @@ export default function JouerSection({ currentUser, tableData, pendingInvite, ac
     setMode(null);
     setValues({ r0: '', r1: '', b0: '', b1: '' });
     setError('');
-    setView('select');
     onReset?.();
   };
 
@@ -105,21 +103,6 @@ export default function JouerSection({ currentUser, tableData, pendingInvite, ac
             </button>
           </div>
         )}
-
-        {view === 'select' ? (
-          <div style={s.selectWrap}>
-            <button style={s.selectBtn} onClick={() => { document.cookie = 'ka_page_access=camera; Path=/; SameSite=Lax'; window.location.href = '/camera'; }}>
-              <span style={s.selectIcon}>📷</span>
-              <span style={s.selectLabel}>Record</span>
-              <span style={s.selectSub}>Manage the camera</span>
-            </button>
-            <button style={s.selectBtn} onClick={() => setView('create')}>
-              <span style={s.selectIcon}>🎮</span>
-              <span style={s.selectLabel}>Play</span>
-              <span style={s.selectSub}>Create a match</span>
-            </button>
-          </div>
-        ) : (
 
         <div style={s.card}>
           <div style={s.cardTitle}>Create a match</div>
@@ -184,7 +167,6 @@ export default function JouerSection({ currentUser, tableData, pendingInvite, ac
             </>
           )}
         </div>
-        )}
 
         {tableData && (() => {
           const [pillLabel, subLabel] = TABLE_LABELS[tableData.state] || ['—', '—'];
@@ -233,11 +215,6 @@ function SlotRow({ value, onChange, onSend, disabled, sent, accepted, loading })
 }
 
 const s = {
-  selectWrap:    { display: 'flex', flexDirection: 'column', gap: '12px' },
-  selectBtn:     { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', background: 'var(--card)', border: '1.5px solid var(--border)', borderRadius: '14px', padding: '24px 16px', cursor: 'pointer', width: '100%', transition: 'border-color .15s' },
-  selectIcon:    { fontSize: '32px' },
-  selectLabel:   { fontSize: '17px', fontWeight: 900, color: 'var(--text)' },
-  selectSub:     { fontSize: '12px', color: 'var(--muted)', fontWeight: 500 },
   card:          { background: 'var(--card)', borderRadius: '12px', padding: '18px', border: '1.5px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '10px' },
   cardTitle:     { fontSize: '15px', fontWeight: 900, color: 'var(--text)' },
   modeRow:       { display: 'flex', gap: '8px' },

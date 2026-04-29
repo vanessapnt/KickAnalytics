@@ -207,6 +207,7 @@ export default function IndexPage() {
       {activeSection === 'jouer' && (
         <JouerSection
           currentUser={currentUser}
+          isAdmin={isAdmin}
           tableData={tableData}
           pendingInvite={pendingInvite}
           acceptedUsernames={acceptedUsernames}
@@ -246,7 +247,16 @@ export default function IndexPage() {
       <footer>
         <button className={activeSection === 'home'  ? 'active' : ''} onClick={() => setActiveSection('home')} ><span className="icon">🏠</span>Home</button>
         <button className={activeSection === 'live'  ? 'active' : ''} onClick={() => setActiveSection('live')} ><span className="icon">📺</span>Live</button>
-        <button className={activeSection === 'jouer' ? 'active' : ''} onClick={() => setActiveSection('jouer')}><span className="icon">🎮</span>Play</button>
+        {isAdmin
+          ? <button onClick={() => { document.cookie = 'ka_page_access=camera; Path=/; SameSite=Lax'; window.location.href = '/camera'; }}><span className="icon">📷</span>Record</button>
+          : <button className={activeSection === 'jouer' ? 'active' : ''} onClick={() => setActiveSection('jouer')}>
+              <span className="icon" style={{ position: 'relative', display: 'inline-block' }}>
+                🎮
+                {pendingInvite && <span style={{ position: 'absolute', top: '-2px', right: '-4px', width: '8px', height: '8px', borderRadius: '50%', background: 'var(--red)', border: '1.5px solid var(--bg)' }} />}
+              </span>
+              Play
+            </button>
+        }
         <button className={activeSection === 'stats' ? 'active' : ''} onClick={() => setActiveSection('stats')}><span className="icon">🏆</span>Leaderboard</button>
       </footer>
 
