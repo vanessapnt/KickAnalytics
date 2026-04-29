@@ -14,12 +14,12 @@ const SLOT_CONFIGS = {
 };
 
 const TABLE_LABELS = {
-  free:        ['🟢 Libre',          'Table disponible'],
-  calibrating: ['🔵 Calibration',    'Calibration du terrain en cours'],
-  playing:     ['🔴 Match en cours', 'Match en cours'],
+  free:        ['🟢 Free',             'Table available'],
+  calibrating: ['🔵 Calibrating',      'Field calibration in progress'],
+  playing:     ['🔴 Match in progress', 'Match in progress'],
 };
 
-export default function JouerSection({ currentUser, isAdmin, tableData, pendingInvite, acceptedUsernames, onAcceptInvite, onMatchStarted, onReset }) {
+export default function JouerSection({ currentUser, tableData, pendingInvite, acceptedUsernames, onAcceptInvite, onMatchStarted, onReset }) {
   const [view, setView]       = useState('select'); // 'select' | 'create'
   const [mode, setMode]       = useState(null);
   const [values, setValues]   = useState({ r0: '', r1: '', b0: '', b1: '' });
@@ -47,7 +47,7 @@ export default function JouerSection({ currentUser, isAdmin, tableData, pendingI
 
   const handleSend = async () => {
     if (invitesSent) return;
-    if (!allFilled) { setError("Remplis tous les pseudos avant d'envoyer."); return; }
+    if (!allFilled) { setError('Fill in all usernames before sending.'); return; }
     setError('');
     setLoading(true);
     const red  = redSlots.map(sl => getU(sl.key));
@@ -61,7 +61,7 @@ export default function JouerSection({ currentUser, isAdmin, tableData, pendingI
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Erreur'); return; }
       setMatchId(data.match_id);
-    } catch { setError('Erreur réseau.'); }
+    } catch { setError('Network error.'); }
     finally { setLoading(false); }
   };
 
@@ -71,11 +71,11 @@ export default function JouerSection({ currentUser, isAdmin, tableData, pendingI
     try {
       const res = await fetch(`/api/matches/${matchId}/start`, { method: 'POST' });
       const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Erreur'); return; }
+      if (!res.ok) { setError(data.error || 'Error'); return; }
       onMatchStarted?.();
       document.cookie = 'ka_page_access=controller; Path=/; SameSite=Lax';
       window.location.href = '/controller';
-    } catch { setError('Erreur réseau.'); }
+    } catch { setError('Network error.'); }
     finally { setLoading(false); }
   };
 
@@ -94,14 +94,14 @@ export default function JouerSection({ currentUser, isAdmin, tableData, pendingI
 
         {pendingInvite && (
           <div style={s.inviteBanner}>
-            <div style={s.inviteTitle}>🎮 Invitation reçue</div>
+            <div style={s.inviteTitle}>🎮 Invitation received</div>
             <div style={s.inviteText}>
-              <b>{pendingInvite.created_by}</b> t'invite à jouer<br />
+              <b>{pendingInvite.created_by}</b> invited you to play<br />
               🔴 {pendingInvite.red_players.join(', ')}<br />
               🔵 {pendingInvite.blue_players.join(', ')}
             </div>
             <button className="btn-red" style={{ marginTop: '10px' }} onClick={onAcceptInvite}>
-              Accepter
+              Accept
             </button>
           </div>
         )}
@@ -110,19 +110,19 @@ export default function JouerSection({ currentUser, isAdmin, tableData, pendingI
           <div style={s.selectWrap}>
             <button style={s.selectBtn} onClick={() => { document.cookie = 'ka_page_access=camera; Path=/; SameSite=Lax'; window.location.href = '/camera'; }}>
               <span style={s.selectIcon}>📷</span>
-              <span style={s.selectLabel}>Filmer</span>
-              <span style={s.selectSub}>Gérer la caméra</span>
+              <span style={s.selectLabel}>Record</span>
+              <span style={s.selectSub}>Manage the camera</span>
             </button>
             <button style={s.selectBtn} onClick={() => setView('create')}>
               <span style={s.selectIcon}>🎮</span>
-              <span style={s.selectLabel}>Jouer</span>
-              <span style={s.selectSub}>Créer une partie</span>
+              <span style={s.selectLabel}>Play</span>
+              <span style={s.selectSub}>Create a match</span>
             </button>
           </div>
         ) : (
 
         <div style={s.card}>
-          <div style={s.cardTitle}>Créer une partie</div>
+          <div style={s.cardTitle}>Create a match</div>
 
           {!invitesSent && (
             <div style={s.modeRow}>
@@ -142,7 +142,7 @@ export default function JouerSection({ currentUser, isAdmin, tableData, pendingI
               {error && <div className="auth-error show">{error}</div>}
 
               <div style={s.slotsWrap}>
-                <div style={s.teamLabel('#c62828')}>🔴 Rouge</div>
+                <div style={s.teamLabel('#c62828')}>🔴 Red</div>
                 {redSlots.map(sl => (
                   <SlotRow key={sl.key}
                     value={values[sl.key]}
@@ -155,7 +155,7 @@ export default function JouerSection({ currentUser, isAdmin, tableData, pendingI
                   />
                 ))}
 
-                <div style={{ ...s.teamLabel('#1565c0'), marginTop: '10px' }}>🔵 Bleu</div>
+                <div style={{ ...s.teamLabel('#1565c0'), marginTop: '10px' }}>🔵 Blue</div>
                 {blueSlots.map(sl => (
                   <SlotRow key={sl.key}
                     value={values[sl.key]}
@@ -171,15 +171,15 @@ export default function JouerSection({ currentUser, isAdmin, tableData, pendingI
 
               {invitesSent && allAccepted && (
                 <button className="btn-red" disabled={loading} onClick={handleStart} style={{ marginTop: '4px' }}>
-                  {loading ? '…' : '🎮 Jouer'}
+                  {loading ? '…' : '🎮 Play'}
                 </button>
               )}
               {invitesSent && !allAccepted && (
-                <div style={s.waitingText}>⏳ En attente des joueurs…</div>
+                <div style={s.waitingText}>⏳ Waiting for players…</div>
               )}
 
               <button style={s.btnCancel} onClick={handleCancel}>
-                {invitesSent ? 'Annuler la partie' : 'Réinitialiser'}
+                {invitesSent ? 'Cancel match' : 'Reset'}
               </button>
             </>
           )}
@@ -193,7 +193,7 @@ export default function JouerSection({ currentUser, isAdmin, tableData, pendingI
               <div className="table-card-top">
                 <div className="table-icon">⚽</div>
                 <div>
-                  <div className="table-title">Babyfoot</div>
+                  <div className="table-title">Foosball</div>
                   <div className="table-subtitle">{subLabel}</div>
                 </div>
                 <div className={`table-status-pill ${tableData.state}`}>{pillLabel}</div>
@@ -223,7 +223,7 @@ function SlotRow({ value, onChange, onSend, disabled, sent, accepted, loading })
           style={{ ...sr.arrowBtn, opacity: value.trim() ? 1 : 0.35 }}
           onClick={onSend}
           disabled={loading || !value.trim()}
-          title="Envoyer les invitations"
+          title="Send invitations"
         >›</button>
       ) : (
         <span style={sr.statusIcon}>{accepted ? '✅' : '⏳'}</span>

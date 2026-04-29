@@ -3,9 +3,9 @@ import { getWsBase } from '../utils/wsBase';
 import '../styles/camera.css';
 
 export default function CameraPage() {
-  const [statusText, setStatusText]   = useState('Déconnecté');
+  const [statusText, setStatusText]   = useState('Disconnected');
   const [statusType, setStatusType]   = useState('');          // '' | 'ok' | 'err'
-  const [terrainText, setTerrainText] = useState('Non calibré');
+  const [terrainText, setTerrainText] = useState('Not calibrated');
   const [terrainOk, setTerrainOk]     = useState(false);
   const [previewMode, setPreviewMode] = useState('empty');     // 'empty' | 'active'
   const [showStop, setShowStop]       = useState(false);
@@ -78,7 +78,7 @@ export default function CameraPage() {
   const calibrate = useCallback(() => {
     const v = videoRef.current, ws = wsRef.current;
     if (!v || !ws) return;
-    setTerrain('Détection...');
+    setTerrain('Detecting...');
     ws.send(JSON.stringify({
       type: 'calibration_frame', image: captureFrame(),
       frame_width: v.videoWidth, frame_height: v.videoHeight,
@@ -113,8 +113,8 @@ export default function CameraPage() {
     wsRef.current = null;
     setStartDisabled(false);
     setShowStop(false);
-    setStatus('Déconnecté');
-    setTerrain('Non calibré');
+    setStatus('Disconnected');
+    setTerrain('Not calibrated');
   }, [showPreview, setStatus, setTerrain]);
 
   const start = useCallback(async () => {
@@ -138,15 +138,15 @@ export default function CameraPage() {
         wsRef.current = ws;
 
         // onopen triggered when 101 OK UPGRADE received (ws connection established)
-        ws.onopen = () => { opened = true; setStatus('Connectée', 'ok'); setTerrain('En attente calibration...'); };
+        ws.onopen = () => { opened = true; setStatus('Connected', 'ok'); setTerrain('Waiting for calibration...'); };
         ws.onclose = () => {
           if (!opened) {
             runningRef.current = false;
-            setStatus('Connexion refusée (auth ou camera non validee)', 'err');
+            setStatus('Connection refused (auth or camera not validated)', 'err');
             setStartDisabled(false); setShowStop(false);
             return;
           }
-          setStatus('Reconnexion...');
+          setStatus('Reconnecting...');
           if (runningRef.current) setTimeout(setupSocket, 2000);
         };
         ws.onmessage = (e) => {
@@ -160,10 +160,10 @@ export default function CameraPage() {
             }));
             setTerrain('Vérifie le contour...');
           }
-          else if (d.type === 'calibration_failed') { setTerrain('Non détecté ❌'); showPreview(null); }
+          else if (d.type === 'calibration_failed') { setTerrain('Not detected ❌'); showPreview(null); }
           else if (d.type === 'calibration_ok') {
             calibratedRef.current = true; showPreview(null);
-            setTerrain('Calibré', true); startTracking();
+            setTerrain('Calibrated', true); startTracking();
           }
         };
       }
@@ -171,7 +171,7 @@ export default function CameraPage() {
       runningRef.current = true;
       setShowStop(true);
     } catch (err) {
-      setStatus('Erreur : ' + err.message, 'err');
+      setStatus('Error: ' + err.message, 'err');
       setStartDisabled(false);
     } finally {
       startInProgressRef.current = false;
@@ -183,13 +183,13 @@ export default function CameraPage() {
     return () => window.removeEventListener('beforeunload', stop);
   }, [stop]);
 
-  const pillLabel = statusType === 'ok' ? 'Actif' : statusType === 'err' ? 'Erreur' : 'Inactif';
+  const pillLabel = statusType === 'ok' ? 'Active' : statusType === 'err' ? 'Error' : 'Inactive';
 
   return (
     <>
       <header>
         <div className="logo">KickAnalytics</div>
-        <a href="/" className="back-link">← Retour</a>
+        <a href="/" className="back-link">← Back</a>
       </header>
 
       <div className="page-content">
@@ -198,7 +198,7 @@ export default function CameraPage() {
           <div className="controls-col">
             <div className="status-card">
               <div className="status-left">
-                <div className="lbl">Connexion</div>
+                <div className="lbl">Connection</div>
                 <div className="val">{statusText}</div>
               </div>
               <span className={`status-pill${statusType ? ' ' + statusType : ''}`}>
@@ -207,15 +207,15 @@ export default function CameraPage() {
             </div>
 
             <div className="terrain-card">
-              <span className="terrain-lbl">Terrain</span>
+              <span className="terrain-lbl">Field</span>
               <span className={`terrain-val${terrainOk ? ' ok' : ''}`}>{terrainText}</span>
             </div>
 
             <div>
-              <div className="section-title">Contrôle caméra</div>
+              <div className="section-title">Camera control</div>
               <div className="btn-row">
-                {!showStop && <button className="btn-red" disabled={startDisabled} onClick={start}>▶ Démarrer</button>}
-                {showStop  && <button className="btn-dark" onClick={stop}>■ Arrêter</button>}
+                {!showStop && <button className="btn-red" disabled={startDisabled} onClick={start}>▶ Start</button>}
+                {showStop  && <button className="btn-dark" onClick={stop}>■ Stop</button>}
               </div>
             </div>
           </div>
@@ -224,7 +224,7 @@ export default function CameraPage() {
             {/* Both divs always in DOM — canvas must stay mounted for drawing */}
             <div className="preview-empty" style={{ display: previewMode === 'empty' ? 'flex' : 'none' }}>
               <span className="icon">📷</span>
-              <span className="hint">Le flux apparaîtra<br />ici après démarrage</span>
+              <span className="hint">Stream will appear<br />here after starting</span>
             </div>
             <div className="preview-active" style={{ display: previewMode === 'active' ? 'block' : 'none' }}>
               <canvas ref={canvasRef}></canvas>

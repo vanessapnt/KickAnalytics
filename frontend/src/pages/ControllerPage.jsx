@@ -8,7 +8,7 @@ export default function ControllerPage() {
     <>
       <header className="ctrl-header">
         <div className="logo">KickAnalytics</div>
-        <button className="back-link" onClick={ctrl.leaveController}>Retour</button>
+        <button className="back-link" onClick={ctrl.leaveController}>Back</button>
       </header>
 
       <div className="page-content">
@@ -18,14 +18,14 @@ export default function ControllerPage() {
           <div>
             <div className="score-card">
               <div className="match-meta">
-                <span>Contrôleur</span>
+                <span>Controller</span>
                 <span>{ctrl.match.mode || '1v1'}</span>
               </div>
 
               <div className="score-row">
                 <div className="team">
                   <div className="team-badge red">🔴</div>
-                  <span className="team-name">Rouge</span>
+                  <span className="team-name">Red</span>
                   <div className="team-players">
                     {ctrl.match.red.length > 0
                       ? ctrl.match.red.map((p, i) => (
@@ -44,7 +44,7 @@ export default function ControllerPage() {
 
                 <div className="team">
                   <div className="team-badge blue">🔵</div>
-                  <span className="team-name">Bleu</span>
+                  <span className="team-name">Blue</span>
                   <div className="team-players">
                     {ctrl.match.blue.length > 0
                       ? ctrl.match.blue.map((p, i) => (
@@ -66,8 +66,8 @@ export default function ControllerPage() {
                 <div className="elo-row">
                   {(ctrl.eloData.mode === '1v1'
                     ? [
-                        { label: 'ELO Rouge', delta: ctrl.eloData.red[0].delta },
-                        { label: 'ELO Bleu',  delta: ctrl.eloData.blue[0].delta },
+                        { label: 'Red ELO', delta: ctrl.eloData.red[0].delta },
+                        { label: 'Blue ELO', delta: ctrl.eloData.blue[0].delta },
                       ]
                     : [
                         { label: ctrl.eloData.red[0].username,  delta: ctrl.eloData.red[0].delta },
@@ -91,15 +91,15 @@ export default function ControllerPage() {
               {ctrl.previewMode === 'empty' && (
                 <div className="preview-empty">
                   <span className="icon">🎯</span>
-                  <span className="hint">Lance la calibration<br />pour voir le terrain</span>
+                  <span className="hint">Start calibration<br />to see the field</span>
                 </div>
               )}
               {ctrl.previewMode === 'image' && (
                 <div className="preview-card">
-                  <img src={ctrl.previewImage} alt="Aperçu calibration" />
+                  <img src={ctrl.previewImage} alt="Calibration preview" />
                   {ctrl.previewHint && (
                     <div className="calibration-hint">
-                      Terrain non détecté. Ajuste angle, hauteur et lumière, puis relance.
+                      Field not detected. Adjust angle, height and lighting, then retry.
                     </div>
                   )}
                 </div>
@@ -111,25 +111,25 @@ export default function ControllerPage() {
           <div className="controls-col">
 
             <div>
-              <div className="section-title">Connexion</div>
+              <div className="section-title">Connection</div>
               <button className="btn-dark" onClick={ctrl.connect} disabled={ctrl.connecting}>
-                🔌 Se connecter
+                🔌 Connect
               </button>
             </div>
 
             <div>
-              <div className="section-title">Calibration terrain</div>
+              <div className="section-title">Field calibration</div>
               <div className="btn-row">
                 <button className="btn-red" onClick={ctrl.triggerCalibration}>
-                  🎯 Calibrer
+                  🎯 Calibrate
                 </button>
                 {ctrl.showCalibrationButtons && (
                   <>
                     <button className="btn-outline" onClick={ctrl.confirmCalibration}>
-                      ✅ Prêt !
+                      ✅ Ready!
                     </button>
                     <button className="btn-outline" onClick={ctrl.triggerCalibration}>
-                      🔄 Relancer
+                      🔄 Retry
                     </button>
                   </>
                 )}
@@ -138,22 +138,22 @@ export default function ControllerPage() {
 
             {ctrl.showStop && (
               <div>
-                <div className="section-title">Match en cours</div>
+                <div className="section-title">Match in progress</div>
                 <button
                   className="btn-outline"
                   onClick={ctrl.stopMatch}
                   style={{ borderColor: '#083879', color: '#083879' }}
                 >
-                  ⏹ Arrêter le match
+                  ⏹ Stop match
                 </button>
               </div>
             )}
 
             {ctrl.showReplay && (
               <div>
-                <div className="section-title">Nouvelle partie</div>
+                <div className="section-title">New match</div>
                 <button className="btn-red" onClick={ctrl.replayMatch}>
-                  🔁 Rejouer
+                  🔁 Play again
                 </button>
               </div>
             )}

@@ -13,10 +13,10 @@ const STRIPES  = [
   ['#1b6b30','#175e2a'],
 ];
 const ROD_LABELS = {
-  blue_goalkeeper: 'Gardien Bleu',   blue_defense:  'Défenseur Bleu',
-  blue_midfield:   'Milieu Bleu',    blue_attack:   'Attaquant Bleu',
-  red_goalkeeper:  'Gardien Rouge',  red_defense:   'Défenseur Rouge',
-  red_midfield:    'Milieu Rouge',   red_midfield2: 'Milieu Rouge',
+  blue_goalkeeper: 'Blue Goalkeeper', blue_defense:  'Blue Defender',
+  blue_midfield:   'Blue Midfielder', blue_attack:   'Blue Forward',
+  red_goalkeeper:  'Red Goalkeeper',  red_defense:   'Red Defender',
+  red_midfield:    'Red Midfielder',  red_midfield2: 'Red Midfielder',
 };
 
 function drawField(ctx) {
@@ -90,7 +90,7 @@ export default function LiveSection({ scoreRed, scoreBlue, liveStatus, latency, 
     const el = goalFlashRef.current;
     if (goalTimerRef.current) clearTimeout(goalTimerRef.current);
     el.className = 'goal-flash ' + (goalFlash.team === 'red' ? 'red' : 'blue');
-    el.querySelector('.goal-flash-title').textContent = goalFlash.team === 'red' ? '🔴 BUT !' : '🔵 BUT !';
+    el.querySelector('.goal-flash-title').textContent = goalFlash.team === 'red' ? '🔴 GOAL!' : '🔵 GOAL!';
     el.querySelector('.goal-flash-rod').textContent   = goalFlash.rod ? (ROD_LABELS[goalFlash.rod] || goalFlash.rod) : '';
     el.style.display = 'flex';
     goalTimerRef.current = setTimeout(() => { el.style.display = 'none'; }, 2500);
@@ -131,11 +131,11 @@ export default function LiveSection({ scoreRed, scoreBlue, liveStatus, latency, 
                 flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '12px',
               }}>
                 <div style={{ fontSize: '52px', animation: 'pausePulse 1.5s ease-in-out infinite' }}>⏸</div>
-                <div style={{ color: 'white', fontWeight: 900, fontSize: '20px', marginTop: '10px', letterSpacing: '1px' }}>MATCH EN PAUSE</div>
-                <div style={{ color: '#ccc', fontSize: '13px', marginTop: '6px' }}>Caméra déconnectée, reconnexion en cours…</div>
+                <div style={{ color: 'white', fontWeight: 900, fontSize: '20px', marginTop: '10px', letterSpacing: '1px' }}>MATCH PAUSED</div>
+                <div style={{ color: '#ccc', fontSize: '13px', marginTop: '6px' }}>Camera disconnected, reconnecting…</div>
               </div>
               <div className="goal-flash" ref={goalFlashRef}>
-                <div className="goal-flash-title">BUT !</div>
+                <div className="goal-flash-title">GOAL!</div>
                 <div className="goal-flash-rod"></div>
               </div>
             </div>
@@ -145,22 +145,22 @@ export default function LiveSection({ scoreRed, scoreBlue, liveStatus, latency, 
               <div className="stat-card"><div className="stat-val">{ballPos ? ballPos.y.toFixed(2) : '—'}</div><div className="stat-lbl">Y</div></div>
             </div>
             <div className="latency-card">
-              <span className="lbl">Latence</span>
+              <span className="lbl">Latency</span>
               <span className="val">{latency}</span>
             </div>
           </div>
 
           <div className="live-right">
             <div className="match-card">
-              <div className="match-meta"><span>Baby-foot, match officiel</span><span>En cours</span></div>
+              <div className="match-meta"><span>Foosball, official match</span><span>Live</span></div>
               <div className="match-score">
-                <div className="team"><div className="team-badge red">🔴</div><span className="team-name">Rouge</span></div>
+                <div className="team"><div className="team-badge red">🔴</div><span className="team-name">Red</span></div>
                 <div className="score-center">
                   <span className="score-num">{scoreRed}</span>
                   <span className="score-sep">-</span>
                   <span className="score-num">{scoreBlue}</span>
                 </div>
-                <div className="team"><div className="team-badge blue">🔵</div><span className="team-name">Bleu</span></div>
+                <div className="team"><div className="team-badge blue">🔵</div><span className="team-name">Blue</span></div>
               </div>
               <div className="dom-bar"><div className="dom-fill" style={{ width: domPct + '%' }}></div></div>
               <div className="dom-labels"><span>{domPct}%</span><span>{100 - domPct}%</span></div>

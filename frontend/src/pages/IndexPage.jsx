@@ -17,7 +17,7 @@ export default function IndexPage() {
 
   const [scoreRed, setScoreRed]     = useState(0);
   const [scoreBlue, setScoreBlue]   = useState(0);
-  const [liveStatus, setLiveStatus] = useState({ text: 'Déconnecté', type: '' });
+  const [liveStatus, setLiveStatus] = useState({ text: 'Disconnected', type: '' });
   const [latency, setLatency]       = useState('—');
   const [ballPos, setBallPos]       = useState(null);
   const [showPauseOverlay, setShowPauseOverlay] = useState(false);
@@ -51,23 +51,23 @@ export default function IndexPage() {
     if (wsRef.current) return;
     let opened = false;
     wsRef.current = new WebSocket(`${getWsBase()}/spectator`);
-    wsRef.current.onopen  = () => { opened = true; setLiveStatus({ text: 'Connecté', type: 'ok' }); };
+    wsRef.current.onopen  = () => { opened = true; setLiveStatus({ text: 'Connected', type: 'ok' }); };
     wsRef.current.onclose = () => {
       wsRef.current = null;
       if (!opened) {
-        setLiveStatus({ text: 'Session expirée', type: 'err' });
+        setLiveStatus({ text: 'Session expired', type: 'err' });
         window.location.href = '/auth';
         return;
       }
-      setLiveStatus({ text: 'Déconnecté', type: '' });
+      setLiveStatus({ text: 'Disconnected', type: '' });
       if (mountedRef.current) setTimeout(connectSpectator, 3000);
     };
     wsRef.current.onmessage = (e) => {
       const d = JSON.parse(e.data);
       if (d.type === 'table_status')    { setTableData(d); return; }
-      if (d.type === 'match_paused')    { setLiveStatus({ text: '⏸ Match en pause', type: 'err' }); setShowPauseOverlay(true); }
-      if (d.type === 'calibration_ok')  { setLiveStatus({ text: '🟢 Match en cours', type: 'ok' }); setScoreRed(0); setScoreBlue(0); setGoals([]); matchStartRef.current = Date.now(); }
-      if (d.type === 'calibration_failed') setLiveStatus({ text: '❌ Calibration échouée', type: 'err' });
+      if (d.type === 'match_paused')    { setLiveStatus({ text: '⏸ Match paused', type: 'err' }); setShowPauseOverlay(true); }
+      if (d.type === 'calibration_ok')  { setLiveStatus({ text: '🟢 Match in progress', type: 'ok' }); setScoreRed(0); setScoreBlue(0); setGoals([]); matchStartRef.current = Date.now(); }
+      if (d.type === 'calibration_failed') setLiveStatus({ text: '❌ Calibration failed', type: 'err' });
       if (d.type === 'position') {
         setBallPos({ x: d.x, y: d.y });
         if (d.ts) setLatency((Date.now() - d.ts) + 'ms');
@@ -79,7 +79,7 @@ export default function IndexPage() {
         const minute = matchStartRef.current ? Math.max(1, Math.round((Date.now() - matchStartRef.current) / 60000)) : '?';
         setGoals(prev => [...prev, { team: d.team, minute }]);
       }
-      if (d.type === 'match_end') { setLiveStatus({ text: '🏁 Match terminé', type: '' }); setTableData(t => ({ ...t, state: 'free' })); }
+      if (d.type === 'match_end') { setLiveStatus({ text: '🏁 Match over', type: '' }); setTableData(t => ({ ...t, state: 'free' })); }
       if (d.type === 'replay')    setReplayFrames(d.frames);
       if (d.type === 'match_invite')    setPendingInvite(d);
       if (d.type === 'player_accepted') setAcceptedUsernames(prev => new Set([...prev, d.username]));
@@ -147,7 +147,7 @@ export default function IndexPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button className="header-avatar" onClick={openProfile} title="Mon compte">{avatarLetter}</button>
           <button onClick={logout} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', borderRadius: '20px', padding: '5px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'sans-serif' }}>
-            Déconnexion
+            Sign out
           </button>
         </div>
       </header>
@@ -173,9 +173,9 @@ export default function IndexPage() {
                       const rows = Math.max(redGoals.length, blueGoals.length);
                       return Array.from({ length: rows }).map((_, i) => (
                         <div key={i} className="match-goal-row">
-                          <span className="match-goal-red">{redGoals[i]  ? `Rouge ${redGoals[i].minute}'`  : ''}</span>
+                          <span className="match-goal-red">{redGoals[i]  ? `Red ${redGoals[i].minute}'`  : ''}</span>
                           <span>⚽</span>
-                          <span className="match-goal-blue">{blueGoals[i] ? `${blueGoals[i].minute}' Bleu` : ''}</span>
+                          <span className="match-goal-blue">{blueGoals[i] ? `${blueGoals[i].minute}' Blue` : ''}</span>
                         </div>
                       ));
                     })()}
@@ -186,9 +186,9 @@ export default function IndexPage() {
             </div>
 
             <div className="match-table-card" style={{ background: '#0d1b3e', color: 'white' }}>
-              <div className="match-table-title">État de la table</div>
+              <div className="match-table-title">Table status</div>
               <div className="match-table-state">
-                {{ free: '🟢 Libre', calibrating: '🔵 Calibration…', playing: '🔴 Match en cours' }[tableData?.state] || '— Connexion…'}
+                {{ free: '🟢 Free', calibrating: '🔵 Calibrating…', playing: '🔴 Match in progress' }[tableData?.state] || '— Connecting…'}
               </div>
             </div>
 
@@ -207,7 +207,6 @@ export default function IndexPage() {
       {activeSection === 'jouer' && (
         <JouerSection
           currentUser={currentUser}
-          isAdmin={isAdmin}
           tableData={tableData}
           pendingInvite={pendingInvite}
           acceptedUsernames={acceptedUsernames}
@@ -220,11 +219,11 @@ export default function IndexPage() {
       {activeSection === 'stats' && (
         <div className="section active">
           <div className="page-content">
-            <div className="section-header" style={{ marginBottom: '12px' }}>🏆 Classement</div>
+            <div className="section-header" style={{ marginBottom: '12px' }}>🏆 Leaderboard</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {leaderboard === undefined && <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px', fontWeight: 600 }}>Chargement...</div>}
-              {leaderboard === false     && <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px', fontWeight: 600 }}>Impossible de charger le classement</div>}
-              {Array.isArray(leaderboard) && leaderboard.length === 0 && <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px', fontWeight: 600 }}>Aucun joueur enregistré</div>}
+              {leaderboard === undefined && <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px', fontWeight: 600 }}>Loading...</div>}
+              {leaderboard === false     && <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px', fontWeight: 600 }}>Unable to load leaderboard</div>}
+              {Array.isArray(leaderboard) && leaderboard.length === 0 && <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px', fontWeight: 600 }}>No players registered</div>}
               {Array.isArray(leaderboard) && leaderboard.map((r, i) => {
                 const rankEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
                 return (
@@ -234,7 +233,7 @@ export default function IndexPage() {
                       <div className="lb-display">{r.display_name}</div>
                       <div className="lb-username">@{r.username} · {r.matches_played} match{r.matches_played !== 1 ? 's' : ''}</div>
                     </div>
-                    <div className="lb-stats"><span className="lb-stat-line">Win {r.winrate_pct != null ? r.winrate_pct + '%' : '—'} · Précision {r.avg_precision_pct != null ? r.avg_precision_pct + '%' : '—'}</span></div>
+                    <div className="lb-stats"><span className="lb-stat-line">Win {r.winrate_pct != null ? r.winrate_pct + '%' : '—'} · Accuracy {r.avg_precision_pct != null ? r.avg_precision_pct + '%' : '—'}</span></div>
                     <span className="lb-elo">{r.elo}</span>
                   </div>
                 );

@@ -14,19 +14,19 @@ export default function AuthPage({ onAuth }) {
     const username     = usernameRef.current?.value.trim().toLowerCase() || '';
     const password     = passwordRef.current?.value || '';
     const display_name = displayNameRef.current?.value.trim() || '';
-    if (!username || !password) { setError('Remplis tous les champs.'); return; }
-    if (view === 'register' && !display_name) { setError('Choisis un nom affiché.'); return; }
-    if (view === 'register' && password.length < 6) { setError('Mot de passe trop court (6 min).'); return; }
+    if (!username || !password) { setError('Fill in all fields.'); return; }
+    if (view === 'register' && !display_name) { setError('Choose a display name.'); return; }
+    if (view === 'register' && password.length < 6) { setError('Password too short (6 min).'); return; }
     setLoading(true);
     try {
       const url  = view === 'login' ? '/api/auth/login' : '/api/auth/register';
       const body = view === 'login' ? { username, password } : { username, display_name, password };
       const res  = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Erreur inconnue'); return; }
+      if (!res.ok) { setError(data.error || 'Unknown error'); return; }
       localStorage.setItem('ka_user', JSON.stringify(data));
       onAuth();
-    } catch { setError('Erreur réseau. Réessaie.'); }
+    } catch { setError('Network error. Please try again.'); }
     finally { setLoading(false); }
   };
 
@@ -41,21 +41,21 @@ export default function AuthPage({ onAuth }) {
       `}</style>
 
       <div style={s.logo}>KickAnalytics</div>
-      <p style={s.tagline}>Analyse de matchs de babyfoot en temps réel</p>
+      <p style={s.tagline}>Real-time foosball match analysis</p>
 
       {view === 'home' && (
         <div style={s.btnGroup}>
           <button className="ka-btn-auth" style={s.btnAuth} onClick={() => { setError(''); setView('login'); }}>
-            Se connecter
+            Sign in
           </button>
           <button className="ka-btn-auth" style={s.btnAuth} onClick={() => { setError(''); setView('register'); }}>
-            S'inscrire
+            Sign up
           </button>
           <button className="ka-btn-demo" style={s.btnDemo} onClick={() => { window.location.href = '/test_pipeline.html'; }}>
             <span style={s.demoIcon}>▶</span>
             <span>
-              <span style={s.demoTitle}>Voir la démo</span>
-              <span style={s.demoSub}>Visualisation d'un match analysé</span>
+              <span style={s.demoTitle}>Watch the demo</span>
+              <span style={s.demoSub}>Visualize an analyzed match</span>
             </span>
           </button>
         </div>
@@ -65,17 +65,17 @@ export default function AuthPage({ onAuth }) {
         <div style={s.form}>
           {error && <div style={s.error}>{error}</div>}
           <input className="ka-input" style={s.input} ref={usernameRef} type="text"
-            placeholder="Pseudo" autoCapitalize="none" autoComplete="username" />
+            placeholder="Username" autoCapitalize="none" autoComplete="username" />
           {view === 'register' && (
-            <input className="ka-input" style={s.input} ref={displayNameRef} type="text" placeholder="Nom affiché" />
+            <input className="ka-input" style={s.input} ref={displayNameRef} type="text" placeholder="Display name" />
           )}
-          <input className="ka-input" style={s.input} ref={passwordRef} type="password" placeholder="Mot de passe"
+          <input className="ka-input" style={s.input} ref={passwordRef} type="password" placeholder="Password"
             autoComplete={view === 'login' ? 'current-password' : 'new-password'}
             onKeyDown={e => e.key === 'Enter' && authSubmit()} />
           <button style={s.btnSubmit} disabled={loading} onClick={authSubmit}>
-            {loading ? '...' : view === 'login' ? 'Se connecter' : "S'inscrire"}
+            {loading ? '...' : view === 'login' ? 'Sign in' : 'Sign up'}
           </button>
-          <button style={s.btnBack} onClick={() => { setView('home'); setError(''); }}>← Retour</button>
+          <button style={s.btnBack} onClick={() => { setView('home'); setError(''); }}>← Back</button>
         </div>
       )}
     </div>

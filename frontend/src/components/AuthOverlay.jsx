@@ -5,30 +5,30 @@ export default function AuthOverlay({ show, tab, error, loading, onTabSwitch, on
       <div className="auth-card">
         <div className="auth-header">
           <div className="logo">KickAnalytics</div>
-          <div className="subtitle">Connecte-toi pour accéder au jeu</div>
+          <div className="subtitle">Sign in to access the game</div>
         </div>
         <div className="auth-tabs">
-          <button className={`auth-tab${tab === 'login'    ? ' active' : ''}`} onClick={() => onTabSwitch('login')}>Connexion</button>
-          <button className={`auth-tab${tab === 'register' ? ' active' : ''}`} onClick={() => onTabSwitch('register')}>Inscription</button>
+          <button className={`auth-tab${tab === 'login'    ? ' active' : ''}`} onClick={() => onTabSwitch('login')}>Sign in</button>
+          <button className={`auth-tab${tab === 'register' ? ' active' : ''}`} onClick={() => onTabSwitch('register')}>Sign up</button>
         </div>
         <div className="auth-body">
           {error && <div className="auth-error show">{error}</div>}
           <div className="auth-field">
-            <label className="auth-label">Pseudo</label>
-            <input className="auth-input" ref={usernameRef} type="text" placeholder="ton_pseudo" autoComplete="username" autoCapitalize="none" />
+            <label className="auth-label">Username</label>
+            <input className="auth-input" ref={usernameRef} type="text" placeholder="your_username" autoComplete="username" autoCapitalize="none" />
           </div>
           {tab === 'register' && (
             <div className="auth-field">
-              <label className="auth-label">Nom affiché</label>
-              <input className="auth-input" ref={displayNameRef} type="text" placeholder="Ton Nom" />
+              <label className="auth-label">Display name</label>
+              <input className="auth-input" ref={displayNameRef} type="text" placeholder="Your Name" />
             </div>
           )}
           <div className="auth-field">
-            <label className="auth-label">Mot de passe</label>
+            <label className="auth-label">Password</label>
             <input className="auth-input" ref={passwordRef} type="password" placeholder="••••••" autoComplete={tab === 'login' ? 'current-password' : 'new-password'} />
           </div>
           <button className="auth-submit" disabled={loading} onClick={onSubmit}>
-            {loading ? '...' : tab === 'login' ? 'Se connecter' : "S'inscrire"}
+            {loading ? '...' : tab === 'login' ? 'Sign in' : 'Sign up'}
           </button>
         </div>
       </div>

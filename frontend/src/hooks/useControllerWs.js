@@ -10,7 +10,7 @@ export function useControllerWs() {
   const [connecting, setConnecting] = useState(false);
   const [match,  setMatch]  = useState({ red: [], blue: [], mode: '1v1' });
   const [score,  setScore]  = useState({ red: 0, blue: 0 });
-  const [status, setStatus] = useState({ text: 'Déconnecté', type: '' });
+  const [status, setStatus] = useState({ text: 'Disconnected', type: '' });
   const [previewMode, setPreviewMode] = useState('empty'); // 'empty' | 'image' | 'none'
   const [previewImage, setPreviewImage] = useState(null);
   const [previewHint,  setPreviewHint]  = useState(false);
@@ -29,7 +29,7 @@ export function useControllerWs() {
     setPreviewMode('empty');
     setShowCalibrationButtons(false);
     setPreviewHint(false);
-    setStatus({ text: '🔍 Détection terrain...', type: '' });
+    setStatus({ text: '🔍 Detecting field...', type: '' });
   }, [sendWs]);
 
   const connect = useCallback(() => {
@@ -46,19 +46,19 @@ export function useControllerWs() {
     newWs.onopen = () => {
       openedRef.current = true;
       setConnecting(false);
-      setStatus({ text: 'Connecté', type: 'ok' });
+      setStatus({ text: 'Connected', type: 'ok' });
     };
 
     newWs.onclose = () => {
       setConnecting(false);
       if (!openedRef.current) {
-        setStatus({ text: 'Connexion refusée (auth requise)', type: 'err' });
+        setStatus({ text: 'Connection refused (auth required)', type: 'err' });
         setTimeout(() => navigate('/'), 900);
         return;
       }
       setShowCalibrationButtons(false);
       setPreviewHint(false);
-      setStatus({ text: 'Déconnecté', type: '' });
+      setStatus({ text: 'Disconnected', type: '' });
     };
 
     newWs.onmessage = (e) => {
@@ -66,20 +66,20 @@ export function useControllerWs() {
 
       if (d.type === 'table_status') {
         if (d.match?.red?.length) setMatch(d.match);
-        if (d.camera_connected) setStatus({ text: '📱 Caméra connectée', type: '' });
+        if (d.camera_connected) setStatus({ text: '📱 Camera connected', type: '' });
       }
       if (d.type === 'calibration_preview') {
         setPreviewImage(d.image);
         setPreviewMode('image');
         setShowCalibrationButtons(true);
         setPreviewHint(false);
-        setStatus({ text: 'Vérifie le contour', type: '' });
+        setStatus({ text: 'Check the outline', type: '' });
       }
       if (d.type === 'calibration_ok') {
         setPreviewMode('none');
         setShowCalibrationButtons(false);
         setPreviewHint(false);
-        setStatus({ text: '🟢 Match en cours', type: 'ok' });
+        setStatus({ text: '🟢 Match in progress', type: 'ok' });
         setShowStop(true);
       }
       if (d.type === 'calibration_failed') {
@@ -93,17 +93,17 @@ export function useControllerWs() {
           setShowCalibrationButtons(false);
           setPreviewHint(false);
         }
-        setStatus({ text: '❌ Échec, ajuste la caméra puis réessaie', type: 'err' });
+        setStatus({ text: '❌ Failed, adjust camera and retry', type: 'err' });
       }
       if (d.type === 'match_paused') {
-        setStatus({ text: '⏸ Match en pause (caméra déconnectée)', type: 'err' });
+        setStatus({ text: '⏸ Match paused (camera disconnected)', type: 'err' });
       }
       if (d.type === 'goal' && d.score) {
         setScore({ red: d.score.red, blue: d.score.blue });
       }
       if (d.type === 'match_end') {
         setScore({ red: d.score.red, blue: d.score.blue });
-        setStatus({ text: '🏁 Match terminé', type: '' });
+        setStatus({ text: '🏁 Match over', type: '' });
         setPreviewMode('none');
         setPreviewHint(false);
         setShowStop(false);
@@ -118,11 +118,11 @@ export function useControllerWs() {
     setPreviewMode('none');
     setShowCalibrationButtons(false);
     setPreviewHint(false);
-    setStatus({ text: '🟢 Match en cours', type: 'ok' });
+    setStatus({ text: '🟢 Match in progress', type: 'ok' });
   }, [sendWs]);
 
   const stopMatch = useCallback(() => {
-    if (!confirm('Arrêter le match en cours ? Le score actuel sera enregistré.')) return;
+    if (!confirm('Stop the current match? The current score will be saved.')) return;
     sendWs({ type: 'force_end_match' });
     setShowStop(false);
   }, [sendWs]);
