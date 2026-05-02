@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import ControllerPage  from './pages/ControllerPage';
-import CameraPage      from './pages/CameraPage';
-import IndexPage       from './pages/IndexPage';
-import AuthPage        from './pages/AuthPage';
+import ControllerPage    from './pages/ControllerPage';
+import CameraPage        from './pages/CameraPage';
+import IndexPage         from './pages/IndexPage';
+import AuthPage          from './pages/AuthPage';
+import TestPipelinePage  from './pages/TestPipelinePage';
 
 function ControllerGuard() {
   // import.meta.env.DEV is automatically true when I run `npm run dev` (Vite's development mode), and false when I run `npm run build` (production mode). This allows me to bypass the cookie check in development for easier testing.
@@ -28,9 +29,10 @@ export default function App() {
       <Routes>
         <Route path="/"            element={loggedIn ? <IndexPage /> : <Navigate to="/auth" replace />} />
         <Route path="/auth"        element={loggedIn ? <Navigate to="/" replace /> : <AuthPage onAuth={() => setLoggedIn(true)} />} />
-        <Route path="/controller"  element={<ControllerGuard />} />
-        <Route path="/camera"      element={<CameraGuard />} />
-        <Route path="*"            element={<Navigate to="/" replace />} />
+        <Route path="/controller"    element={<ControllerGuard />} />
+        <Route path="/camera"        element={<CameraGuard />} />
+        <Route path="/testpipeline"  element={<TestPipelinePage />} />
+        <Route path="*"              element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

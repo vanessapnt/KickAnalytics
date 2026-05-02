@@ -125,8 +125,11 @@ frontend-build:
 VIDEO       ?= test.mp4
 SERVER_FPS  ?= 14
 MAX_FRAMES  ?= 500
-test-pipeline:
+test-pipeline: ## requires: make build first
 	docker run --rm --memory=2g -v $(shell pwd):/app -w /app $(IMAGE_NAME) python3 -u back/test_pipeline.py $(VIDEO) $(SERVER_FPS) $(MAX_FRAMES)
+
+test-pipeline-dev: ## runs directly without Docker (for local dev)
+	cd back && python3 -u test_pipeline.py ../$(VIDEO) $(SERVER_FPS) $(MAX_FRAMES)
 
 clean:
 	docker ps -q --filter ancestor=$(IMAGE_NAME) | xargs -r docker stop || true

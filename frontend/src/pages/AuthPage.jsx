@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function AuthPage({ onAuth }) {
+  const navigate = useNavigate();
   const [view, setView]       = useState('home'); // 'home' | 'login' | 'register'
   const [error, setError]     = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,7 +53,7 @@ export default function AuthPage({ onAuth }) {
           <button className="ka-btn-auth" style={s.btnAuth} onClick={() => { setError(''); setView('register'); }}>
             Sign up
           </button>
-          <button className="ka-btn-demo" style={s.btnDemo} onClick={() => { window.location.href = '/test_pipeline.html'; }}>
+          <button className="ka-btn-demo" style={s.btnDemo} onClick={() => navigate('/testpipeline')}>
             <span style={s.demoIcon}>▶</span>
             <span>
               <span style={s.demoTitle}>Watch the demo</span>
