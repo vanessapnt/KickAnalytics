@@ -107,7 +107,7 @@ deploy-gcloud: frontend-build
 		--max-instances 1 \
 		--timeout 3600 \
 		--no-cpu-throttling \
-		--set-env-vars DATABASE_URL=$${DATABASE_URL},CORS_ORIGINS=$${CORS_ORIGINS},ENV=$${ENV},SESSION_SECRET=$${SESSION_SECRET}
+		--set-env-vars DATABASE_URL=$${DATABASE_URL},CORS_ORIGINS=$${CORS_ORIGINS},ENV=$${ENV},SESSION_SECRET=$${SESSION_SECRET},ADMIN_USERNAMES=$${ADMIN_USERNAMES}
 
 dev-server:
 	ENV=development python3 back/server.py
@@ -122,18 +122,27 @@ frontend-dev:
 frontend-build:
 	docker run --rm -v $(shell pwd)/frontend:/app -w /app node:20-alpine sh -c "npm install && npm run build"
 
+SERVER      ?= https://todo.run.app
+CAM_USER    ?= admin
+CAM_PASS    ?= password
 VIDEO       ?= test.mp4
 SERVER_FPS  ?= 14
 MAX_FRAMES  ?= 500
-test-pipeline: ## requires: make build first
+test-pipeline:
 	docker run --rm --memory=2g -v $(shell pwd):/app -w /app $(IMAGE_NAME) python3 -u back/test_pipeline.py $(VIDEO) $(SERVER_FPS) $(MAX_FRAMES)
 
-test-pipeline-dev: ## runs directly without Docker (for local dev)
+test-pipeline-dev:
 	cd back && python3 -u test_pipeline.py ../$(VIDEO) $(SERVER_FPS) $(MAX_FRAMES)
+
+send-video:
+	python3 colab_camera_sender.py --server $(SERVER) --video $(VIDEO) --user $(CAM_USER) --password $(CAM_PASS) --fps $(SERVER_FPS) --loop
+
+send-video-local:
+	python3 colab_camera_sender.py --server http://localhost:$(HTTP_PORT) --video $(VIDEO) --user $(CAM_USER) --password $(CAM_PASS) --fps $(SERVER_FPS) --loop
 
 clean:
 	docker ps -q --filter ancestor=$(IMAGE_NAME) | xargs -r docker stop || true
 	docker ps -aq --filter ancestor=$(IMAGE_NAME) | xargs -r docker rm || true
 	docker rmi $(IMAGE_NAME) || true
 
-.PHONY: info test install-docker install-ngrok install-gcloud build run-local tunnel check-gcloud gcloud-auth configure-gcloud deploy-gcloud test-pipeline dev-server dev-frontend frontend-dev frontend-build clean
+.PHONY: info test install-docker install-ngrok install-gcloud build run-local tunnel check-gcloud gcloud-auth configure-gcloud deploy-gcloud test-pipeline test-pipeline-dev send-video send-video-local dev-server dev-frontend frontend-dev frontend-build clean
