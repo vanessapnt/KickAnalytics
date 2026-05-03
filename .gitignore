@@ -5,3 +5,5 @@ __pycache__/
 *.MOV
 *.onnx
 test_pipeline.html
+frontend/public/pipeline_data/
+frontend/dist/
