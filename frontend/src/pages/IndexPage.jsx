@@ -27,6 +27,7 @@ export default function IndexPage() {
   const matchStartRef = useRef(null);
   const wsRef = useRef(null);
 
+  const [matchPlayers, setMatchPlayers]   = useState(null);
   const [tableData, setTableData]         = useState(null);
   const [leaderboard, setLeaderboard]     = useState(null);
   const [pendingInvite, setPendingInvite]         = useState(null);
@@ -66,7 +67,7 @@ export default function IndexPage() {
       const d = JSON.parse(e.data);
       if (d.type === 'table_status')    { setTableData(d); return; }
       if (d.type === 'match_paused')    { setLiveStatus({ text: '⏸ Match paused', type: 'err' }); setShowPauseOverlay(true); }
-      if (d.type === 'calibration_ok')  { setLiveStatus({ text: '🟢 Match in progress', type: 'ok' }); setScoreRed(0); setScoreBlue(0); setGoals([]); matchStartRef.current = Date.now(); }
+      if (d.type === 'calibration_ok')  { setLiveStatus({ text: '🟢 Match in progress', type: 'ok' }); setScoreRed(0); setScoreBlue(0); setGoals([]); matchStartRef.current = Date.now(); fetch('/api/live/players').then(r => r.ok ? r.json() : null).then(p => { if (p) setMatchPlayers(p); }).catch(() => {}); }
       if (d.type === 'calibration_failed') setLiveStatus({ text: '❌ Calibration failed', type: 'err' });
       if (d.type === 'position') {
         setBallPos({ x: d.x, y: d.y });
@@ -79,7 +80,7 @@ export default function IndexPage() {
         const minute = matchStartRef.current ? Math.max(1, Math.round((Date.now() - matchStartRef.current) / 60000)) : '?';
         setGoals(prev => [...prev, { team: d.team, minute }]);
       }
-      if (d.type === 'match_end') { setLiveStatus({ text: '🏁 Match over', type: '' }); setTableData(t => ({ ...t, state: 'free' })); }
+      if (d.type === 'match_end') { setLiveStatus({ text: '🏁 Match over', type: '' }); setTableData(t => ({ ...t, state: 'free' })); setMatchPlayers(null); }
       if (d.type === 'replay')    setReplayFrames(d.frames);
       if (d.type === 'match_invite')    setPendingInvite(d);
       if (d.type === 'player_accepted') setAcceptedUsernames(prev => new Set([...prev, d.username]));
@@ -115,6 +116,14 @@ export default function IndexPage() {
 
   useEffect(() => { if (activeSection === 'stats') loadLeaderboard(); }, [activeSection, loadLeaderboard]);
 
+  useEffect(() => {
+    if (activeSection === 'live') {
+      document.body.style.overflow = 'hidden';
+      fetch('/api/live/players').then(r => r.ok ? r.json() : null).then(p => { if (p) setMatchPlayers(p); }).catch(() => {});
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [activeSection]);
+
   const openProfile = useCallback(async () => {
     if (!currentUserRef.current) return;
     setShowProfile(true); setProfileStats(null);
@@ -140,12 +149,21 @@ export default function IndexPage() {
 
   const avatarLetter = currentUser ? (currentUser.display_name || currentUser.username || '?')[0].toUpperCase() : '?';
 
+  const handleProfileUpdate = (updated) => {
+    setCurrentUser(updated);
+    currentUserRef.current = updated;
+  };
+
   return (
     <>
       <header>
         <div className="logo">KickAnalytics</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button className="header-avatar" onClick={openProfile} title="Mon compte">{avatarLetter}</button>
+          <button className="header-avatar" onClick={openProfile} title="Mon compte">
+            {currentUser?.avatar
+              ? <img src={currentUser.avatar} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} alt="" />
+              : avatarLetter}
+          </button>
           <button onClick={logout} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', borderRadius: '20px', padding: '5px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'sans-serif' }}>
             Sign out
           </button>
@@ -156,7 +174,7 @@ export default function IndexPage() {
         <div className="section active">
           <div className="page-content" style={{ paddingTop: '16px' }}>
 
-            <div className="match-card" style={{ background: '#1a3a8a' }}>
+            <div className="match-card" style={{ background: '#1e2f45' }}>
               <div className="match-card-gradient" />
               <div className="match-card-inner">
                 <h2 className="match-card-title">KickAnalytics</h2>
@@ -185,7 +203,7 @@ export default function IndexPage() {
               </div>
             </div>
 
-            <div className="match-table-card" style={{ background: '#0d1b3e', color: 'white' }}>
+            <div className="match-table-card" style={{ background: '#0e1520', color: 'white' }}>
               <div className="match-table-title">Table status</div>
               <div className="match-table-state">
                 {{ free: '🟢 Free', calibrating: '🔵 Calibrating…', playing: '🔴 Match in progress' }[tableData?.state] || '— Connecting…'}
@@ -200,7 +218,8 @@ export default function IndexPage() {
         <LiveSection
           scoreRed={scoreRed} scoreBlue={scoreBlue} liveStatus={liveStatus}
           latency={latency} ballPos={ballPos} showPauseOverlay={showPauseOverlay}
-          goalFlash={goalFlash} replayFrames={replayFrames}
+          goalFlash={goalFlash} replayFrames={replayFrames} goals={goals}
+          matchPlayers={matchPlayers}
         />
       )}
 
@@ -262,7 +281,7 @@ export default function IndexPage() {
 
       <ProfileDrawer
         show={showProfile} currentUser={currentUser} stats={profileStats}
-        onClose={() => setShowProfile(false)} onLogout={logout}
+        onClose={() => setShowProfile(false)} onLogout={logout} onUpdate={handleProfileUpdate}
       />
     </>
   );

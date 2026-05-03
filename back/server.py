@@ -12,6 +12,7 @@ from api import (
     api_auth_register, api_auth_login, api_auth_logout,
     api_leaderboard, api_player_stats, api_debug_dump_sets,
     api_create_match, api_pending_invites, api_accept_invite, api_start_match, api_me,
+    api_update_profile, api_live_players,
 )
 
 # Comma-separated list of allowed origins, e.g.: CORS_ORIGINS=https://kickanalytics.pages.dev,http://localhost:5173
@@ -140,6 +141,8 @@ async def main():
     app.router.add_route("POST", "/api/invites/{match_id}/accept", api_accept_invite)
     app.router.add_route("POST", "/api/matches/{match_id}/start", api_start_match)
 
+    app.router.add_route("POST", "/api/profile/update", api_update_profile)
+    app.router.add_route("GET",  "/api/live/players", api_live_players)
     app.router.add_route("POST", "/api/debug/dump-sets", api_debug_dump_sets)
     
     # catch-all for static files so never returns 404 automatically, we handle it in http_file_handler

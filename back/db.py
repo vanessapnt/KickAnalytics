@@ -10,6 +10,8 @@ async def init_db():
         min_size=1,
         max_size=5,
     )
+    async with _pool.acquire() as conn:
+        await conn.execute("ALTER TABLE players ADD COLUMN IF NOT EXISTS avatar TEXT")
     print("DB pool ready")
 
 async def close_db():

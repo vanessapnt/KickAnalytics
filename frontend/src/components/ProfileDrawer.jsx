@@ -1,12 +1,79 @@
-export default function ProfileDrawer({ show, currentUser, stats, onClose, onLogout }) {
+import { useState, useRef } from 'react';
+
+function compressAvatar(file, cb) {
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    const min = Math.min(img.width, img.height);
+    ctx.drawImage(img, (img.width - min) / 2, (img.height - min) / 2, min, min, 0, 0, 256, 256);
+    cb(canvas.toDataURL('image/jpeg', 0.82));
+  };
+  img.src = URL.createObjectURL(file);
+}
+
+function AvatarCircle({ user, size = 52, className = 'profile-drawer-avatar' }) {
+  const letter = (user?.display_name || user?.username || '?')[0].toUpperCase();
+  if (user?.avatar) {
+    return <img src={user.avatar} className={className} style={{ objectFit: 'cover' }} alt="" />;
+  }
+  return <div className={className}>{letter}</div>;
+}
+
+export default function ProfileDrawer({ show, currentUser, stats, onClose, onLogout, onUpdate }) {
+  const [editing, setEditing]   = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editAvatar, setEditAvatar] = useState(undefined); // undefined=unchanged, null=cleared, string=new
+  const [saving, setSaving]     = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const fileRef = useRef();
+
   if (!currentUser) return null;
-  const letter = (currentUser.display_name || currentUser.username || '?')[0].toUpperCase();
+
+  const openEdit = () => {
+    setEditName(currentUser.display_name || '');
+    setEditAvatar(undefined);
+    setSaveError('');
+    setEditing(true);
+  };
+
+  const handleFile = (e) => {
+    const f = e.target.files[0];
+    if (f) compressAvatar(f, setEditAvatar);
+    e.target.value = '';
+  };
+
+  const previewSrc = editAvatar === undefined
+    ? (currentUser.avatar || null)
+    : editAvatar;
+
+  const saveProfile = async () => {
+    if (!editName.trim()) { setSaveError('Display name is required.'); return; }
+    setSaving(true); setSaveError('');
+    try {
+      const body = {
+        display_name: editName.trim(),
+        avatar: editAvatar === undefined ? currentUser.avatar ?? null : editAvatar,
+      };
+      const res  = await fetch('/api/profile/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) { setSaveError(data.error || 'Save failed.'); return; }
+      const updated = { ...currentUser, ...data };
+      localStorage.setItem('ka_user', JSON.stringify(updated));
+      onUpdate?.(updated);
+      setEditing(false);
+    } catch { setSaveError('Network error.'); }
+    finally { setSaving(false); }
+  };
+
   return (
     <>
-      <div className={`profile-overlay${show ? ' open' : ''}`} onClick={onClose}></div>
+      <div className={`profile-overlay${show ? ' open' : ''}`} onClick={onClose} />
       <div className={`profile-drawer${show ? ' open' : ''}`}>
+
         <div className="profile-drawer-header">
-          <div className="profile-drawer-avatar">{letter}</div>
+          <AvatarCircle user={currentUser} />
           <div>
             <div className="profile-drawer-name">{currentUser.display_name}</div>
             <div className="profile-drawer-user">@{currentUser.username}</div>
@@ -15,14 +82,63 @@ export default function ProfileDrawer({ show, currentUser, stats, onClose, onLog
         </div>
 
         <div className="profile-drawer-body">
-          {stats === null  && <div className="profile-empty">Loading...</div>}
-          {stats === false && <div className="profile-empty">Unable to load stats.<br />Check your connection.</div>}
-          {stats && <ProfileStats stats={stats} currentUser={currentUser} />}
+          {editing ? (
+            <div className="profile-edit-form">
+              <div className="profile-edit-avatar-wrap">
+                <div
+                  className="profile-edit-avatar"
+                  style={previewSrc ? { backgroundImage: `url(${previewSrc})` } : {}}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  {!previewSrc && <span className="profile-edit-avatar-icon">📷</span>}
+                </div>
+                <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFile} />
+                <div className="profile-edit-photo-btns">
+                  <button className="profile-edit-photo-btn" onClick={() => fileRef.current?.click()}>
+                    {previewSrc ? 'Change photo' : 'Add photo'}
+                  </button>
+                  {previewSrc && (
+                    <button className="profile-edit-photo-btn remove" onClick={() => setEditAvatar(null)}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <label className="profile-edit-label">Display name</label>
+              <input
+                className="profile-edit-input"
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && saveProfile()}
+                autoFocus
+              />
+
+              {saveError && <div className="profile-edit-error">{saveError}</div>}
+
+              <div className="profile-edit-actions">
+                <button className="profile-edit-save" onClick={saveProfile} disabled={saving}>
+                  {saving ? '…' : 'Save'}
+                </button>
+                <button className="profile-edit-cancel" onClick={() => setEditing(false)}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {stats === null  && <div className="profile-empty">Loading...</div>}
+              {stats === false && <div className="profile-empty">Unable to load stats.<br />Check your connection.</div>}
+              {stats && <ProfileStats stats={stats} currentUser={currentUser} />}
+            </>
+          )}
         </div>
 
         <div className="profile-drawer-footer">
+          {!editing && (
+            <button className="btn-edit-profile" onClick={openEdit}>Edit profile</button>
+          )}
           <button className="btn-logout-full" onClick={() => { onLogout(); onClose(); }}>Sign out</button>
         </div>
+
       </div>
     </>
   );

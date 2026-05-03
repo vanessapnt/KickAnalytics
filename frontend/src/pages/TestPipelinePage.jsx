@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 const STRIPES = [
-  [0/7, 1/7, '#1b6b30', '#175e2a'],
-  [1/7, 2/7, '#1e7534', '#1a662e'],
-  [2/7, 3/7, '#1b6b30', '#175e2a'],
-  [3/7, 4/7, '#216e2e', '#1d622a'],
-  [4/7, 5/7, '#1b6b30', '#175e2a'],
-  [5/7, 6/7, '#1e7534', '#1a662e'],
-  [6/7, 7/7, '#1b6b30', '#175e2a'],
+  [0/7, 1/7, '#1d222c', '#1d222c'],
+  [1/7, 2/7, '#0e1520', '#0e1520'],
+  [2/7, 3/7, '#1d222c', '#1d222c'],
+  [3/7, 4/7, '#0e1520', '#0e1520'],
+  [4/7, 5/7, '#1d222c', '#1d222c'],
+  [5/7, 6/7, '#0e1520', '#0e1520'],
+  [6/7, 7/7, '#1d222c', '#1d222c'],
 ];
 
 const ROD_LABELS = {
@@ -114,7 +114,7 @@ export default function TestPipelinePage() {
       ctx.fillRect(0, y0, CW, y1 - y0);
     });
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
     ctx.lineWidth = 1;
     ctx.setLineDash([6, 4]);
     for (let i = 1; i < 7; i++) {
@@ -123,19 +123,19 @@ export default function TestPipelinePage() {
     }
     ctx.setLineDash([]);
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.strokeStyle = 'white';
     ctx.lineWidth = 2.5;
     ctx.strokeRect(12, FY0, CW - 24, FH);
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.strokeStyle = 'white';
     ctx.lineWidth = 2;
     const midY = FY0 + FH / 2;
     ctx.beginPath(); ctx.moveTo(12, midY); ctx.lineTo(CW - 12, midY); ctx.stroke();
     ctx.beginPath(); ctx.arc(CW / 2, midY, 44, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.arc(CW / 2, midY, 3, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fill();
+    ctx.fillStyle = 'white'; ctx.fill();
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.strokeStyle = 'white';
     ctx.lineWidth = 2;
     const gw = CW * (18 / 68), gx = (CW - gw) / 2;
     ctx.strokeRect(gx, FY0,              gw, FH * 0.05);
@@ -272,7 +272,6 @@ export default function TestPipelinePage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px 240px', gap: 10, padding: 10, height: 'calc(100vh - 50px)', minHeight: 0 }}>
 
-        {/* Video panel */}
         <div style={s.panel}>
           <div style={s.panelTitle}>Frame vidéo {current + 1} / {frames.length} (vidéo frame {r.frame_idx})</div>
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#000', position: 'relative', minHeight: 0 }}>
@@ -302,7 +301,6 @@ export default function TestPipelinePage() {
           </div>
         </div>
 
-        {/* Canvas panel */}
         <div style={s.panel}>
           <div style={s.panelTitle}>Terrain canvas {cv.CW}×{cv.CH}px (terrain {cv.CW}×{cv.FIELD_H_PX} + buts {cv.GOAL_DEPTH_PX}px)</div>
           <div ref={wrapRef} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 8, minHeight: 0 }}>
@@ -310,7 +308,6 @@ export default function TestPipelinePage() {
           </div>
         </div>
 
-        {/* Stats panel */}
         <div style={s.panel}>
           <div style={s.panelTitle}>Pipeline</div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0 }}>

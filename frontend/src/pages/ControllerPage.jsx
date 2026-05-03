@@ -14,7 +14,6 @@ export default function ControllerPage() {
       <div className="page-content">
         <div className="ctrl-layout">
 
-          {/* Colonne gauche : score + preview */}
           <div>
             <div className="score-card">
               <div className="match-meta">
@@ -107,7 +106,6 @@ export default function ControllerPage() {
             </div>
           </div>
 
-          {/* Colonne droite : contrôles */}
           <div className="controls-col">
 
             <div>
@@ -142,7 +140,7 @@ export default function ControllerPage() {
                 <button
                   className="btn-outline"
                   onClick={ctrl.stopMatch}
-                  style={{ borderColor: '#083879', color: '#083879' }}
+                  style={{ borderColor: '#1e2f45', color: '#e4e8f2' }}
                 >
                   ⏹ Stop match
                 </button>

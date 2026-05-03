@@ -37,6 +37,15 @@ async def api_debug_dump_sets(request):
     print("[DEBUG][STATE_DUMP]", json.dumps(payload, ensure_ascii=False))
     return _resp(payload)
 
+def _validate_avatar(avatar):
+    if not avatar:
+        return None, None
+    if not avatar.startswith("data:image/"):
+        return None, "Invalid avatar format"
+    if len(avatar) > 3 * 1024 * 1024:
+        return None, "Avatar too large (max ~2MB)"
+    return avatar, None
+
 async def api_auth_register(request):
     try:
         body = await request.json()
@@ -47,21 +56,22 @@ async def api_auth_register(request):
     password = (body.get("password") or "").strip()
     if not username or not display_name or not password:
         return _resp({"error": "username, display_name and password are required"}, 400)
-    if len(password) < 6: # needs to be checked on server side too bc the front can be bypassed using curl
+    if len(password) < 6:
         return _resp({"error": "Password too short (minimum 6 characters)"}, 400)
-    
+    avatar_raw = (body.get("avatar") or "").strip()
+    avatar, err = _validate_avatar(avatar_raw)
+    if err:
+        return _resp({"error": err}, 400)
+
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    # encode() : str -> bytes (bcrypt needs bytes)
     pool = get_pool()
     try:
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
-                "INSERT INTO players (username, display_name, password_hash) VALUES ($1, $2, $3) RETURNING id, username, display_name, elo",
-                username, display_name, password_hash)
-        response = _resp({"id": str(row["id"]), "username": row["username"], "display_name": row["display_name"], "elo": row["elo"]}, 201)
+                "INSERT INTO players (username, display_name, password_hash, avatar) VALUES ($1, $2, $3, $4) RETURNING id, username, display_name, elo, avatar",
+                username, display_name, password_hash, avatar)
+        response = _resp({"id": str(row["id"]), "username": row["username"], "display_name": row["display_name"], "elo": row["elo"], "avatar": row["avatar"]}, 201)
         token = create_session_token(user_id=str(row["id"]), username=row["username"], display_name=row["display_name"])
-        # cookie "ka_session" = "eyJ1c2VybmFtZSI6ImFsaWNlIn0.ABC123signature" (payload in base64 + signature)
-        # cookie_name = token 
         set_session_cookie(response, token, secure=(request.scheme == "https"))
         return response
     except Exception as e:
@@ -81,12 +91,12 @@ async def api_auth_login(request):
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id, username, display_name, elo, password_hash FROM players WHERE username = $1", username)
+            "SELECT id, username, display_name, elo, password_hash, avatar FROM players WHERE username = $1", username)
     if row is None:
         return _resp({"error": "Username not found"}, 401)
     if not bcrypt.checkpw(password.encode(), row["password_hash"].encode()):
         return _resp({"error": "Incorrect password"}, 401)
-    response = _resp({"id": str(row["id"]), "username": row["username"], "display_name": row["display_name"], "elo": row["elo"]})
+    response = _resp({"id": str(row["id"]), "username": row["username"], "display_name": row["display_name"], "elo": row["elo"], "avatar": row["avatar"]})
     token = create_session_token(user_id=str(row["id"]), username=row["username"], display_name=row["display_name"])
     set_session_cookie(response, token, secure=(request.scheme == "https"))
     return response
@@ -399,6 +409,85 @@ async def api_start_match(request):
     state.match_over  = False
 
     return _resp({"ok": True, "mode": mode, "red": red, "blue": blue})
+
+async def api_update_profile(request):
+    session_user = get_session_user_from_request(request)
+    if not session_user:
+        return _resp({"error": "Unauthorized"}, 401)
+    try:
+        body = await request.json()
+    except Exception:
+        return _resp({"error": "Invalid JSON"}, 400)
+
+    username = session_user["username"]
+    display_name = (body.get("display_name") or "").strip()
+    if not display_name:
+        return _resp({"error": "Display name is required"}, 400)
+
+    avatar_raw = body.get("avatar")
+    if avatar_raw is None:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            cur = await conn.fetchrow("SELECT avatar FROM players WHERE username = $1", username)
+        avatar = cur["avatar"] if cur else None
+    else:
+        avatar_raw = (avatar_raw or "").strip()
+        avatar, err = _validate_avatar(avatar_raw)
+        if err:
+            return _resp({"error": err}, 400)
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE players SET display_name = $1, avatar = $2 WHERE username = $3 RETURNING id, username, display_name, elo, avatar",
+            display_name, avatar, username)
+    if row is None:
+        return _resp({"error": "User not found"}, 404)
+    return _resp({"id": str(row["id"]), "username": row["username"], "display_name": row["display_name"], "elo": row["elo"], "avatar": row["avatar"]})
+
+async def api_live_players(request):
+    red_usernames  = state.current_match.get("red", [])
+    blue_usernames = state.current_match.get("blue", [])
+    mode           = state.current_match.get("mode", "1v1")
+
+    all_usernames = list(set(red_usernames + blue_usernames))
+    if not all_usernames:
+        return _resp({"red": [], "blue": [], "mode": mode})
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT username, display_name, elo, avatar FROM players WHERE username = ANY($1)",
+            all_usernames
+        )
+    by_username = {r["username"]: dict(r) for r in rows}
+
+    def make_player(username):
+        p = by_username.get(username, {"username": username, "display_name": username, "elo": 1000, "avatar": None})
+        return {"username": p["username"], "display_name": p["display_name"], "elo": p["elo"], "avatar": p["avatar"]}
+
+    red_players  = [make_player(u) for u in red_usernames]
+    blue_players = [make_player(u) for u in blue_usernames]
+
+    K = 32
+    avg_red  = sum(p["elo"] for p in red_players)  / max(len(red_players), 1)
+    avg_blue = sum(p["elo"] for p in blue_players) / max(len(blue_players), 1)
+    e_red = 1 / (1 + 10 ** ((avg_blue - avg_red) / 400))
+    n_red, n_blue = max(len(red_players), 1), max(len(blue_players), 1)
+
+    red_win  = round(K * (1 - e_red))
+    red_loss = round(K * (0 - e_red))
+    blue_win  = round(K * e_red)
+    blue_loss = round(K * (0 - (1 - e_red)))
+
+    for p in red_players:
+        p["win_delta"]  = red_win  // n_red
+        p["loss_delta"] = red_loss // n_red
+    for p in blue_players:
+        p["win_delta"]  = blue_win  // n_blue
+        p["loss_delta"] = blue_loss // n_blue
+
+    return _resp({"red": red_players, "blue": blue_players, "mode": mode})
 
 async def api_me(request):
     session_user = get_session_user_from_request(request)

@@ -4,10 +4,10 @@ import '../styles/camera.css';
 
 export default function CameraPage() {
   const [statusText, setStatusText]   = useState('Disconnected');
-  const [statusType, setStatusType]   = useState('');          // '' | 'ok' | 'err'
+  const [statusType, setStatusType]   = useState('');
   const [terrainText, setTerrainText] = useState('Not calibrated');
   const [terrainOk, setTerrainOk]     = useState(false);
-  const [previewMode, setPreviewMode] = useState('empty');     // 'empty' | 'active'
+  const [previewMode, setPreviewMode] = useState('empty');
   const [showStop, setShowStop]       = useState(false);
   const [startDisabled, setStartDisabled] = useState(false);
 
@@ -42,7 +42,7 @@ export default function CameraPage() {
     pCtx.lineTo(br[0], br[1]);
     pCtx.lineTo(bl[0], bl[1]);
     pCtx.closePath();
-    pCtx.strokeStyle = '#083879';
+    pCtx.strokeStyle = '#1e2f45';
     pCtx.lineWidth   = 4;
     pCtx.stroke();
     setPreviewMode('active');
@@ -221,7 +221,6 @@ export default function CameraPage() {
           </div>
 
           <div>
-            {/* Both divs always in DOM — canvas must stay mounted for drawing */}
             <div className="preview-empty" style={{ display: previewMode === 'empty' ? 'flex' : 'none' }}>
               <span className="icon">📷</span>
               <span className="hint">Stream will appear<br />here after starting</span>
@@ -235,7 +234,6 @@ export default function CameraPage() {
         </div>
       </div>
 
-      {/* Hidden video element needed to capture frames from camera stream */}
       <video ref={videoRef} autoPlay playsInline muted style={{ display: 'none' }}></video>
     </>
   );
