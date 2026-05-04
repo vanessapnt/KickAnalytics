@@ -9,7 +9,7 @@ from config import *
 from game import game, apply_homography, check_goal, store_pending_calibration, confirm_calibration
 from vision import detect_ball, detect_field_corners
 from db import save_match, compute_elo_deltas, get_pool
-from zones import compute_attributed_stats, detect_contacts, last_scorer_contact
+from zones import compute_attributed_stats, detect_contacts, last_scorer_contact, check_latest_contact
 import state
 from auth_session import get_session_user_from_request
 
@@ -131,12 +131,14 @@ async def save_match_end(score: dict, stats: dict):
     await broadcast(state.controllers, elo_update_msg)
 
     state.table_state = "free"
-    await broadcast(state.spectators, {"type": "table_status", "state": "free"})
-    await broadcast(state.controllers, {"type": "table_status", "state": "free"})
+    state.current_match = {"mode": "1v1", "red": [], "blue": [], "roles": {"red": [], "blue": []}}
+    await broadcast(state.spectators, {"type": "table_status", "state": "free", "match": state.current_match})
+    await broadcast(state.controllers, {"type": "table_status", "state": "free", "match": state.current_match})
 
 async def _force_end_match():
     state.match_over = True
     state.table_state = "free"
+    state.current_match = {"mode": "1v1", "red": [], "blue": [], "roles": {"red": [], "blue": []}}
     stats = compute_stats()
     score = dict(game.score)
     await broadcast(state.spectators, {"type": "match_end", "score": score, "stats": stats, "reason": "force_ended"})
@@ -167,6 +169,19 @@ async def inference_worker():
                 state.frame_queue.task_done(); continue
 
             state.ball_history.append({"x": kx, "y": ky, "t": ts})
+
+            contact = check_latest_contact(state.ball_history)
+            if contact:
+                await broadcast(state.spectators, {
+                    "type": "contact",
+                    "team": contact["team"],
+                    "rod":  contact["name"],
+                    "x":    contact["x"] / CANVAS_W,
+                    "y":    (contact["y"] - GOAL_DEPTH_PX) / FIELD_H_PX,
+                    "deviation": contact["deviation"],
+                    "t":    contact["t"],
+                })
+
             scorer = check_goal(kx, ky)
 
             if scorer and not state.replay_in_progress:
@@ -314,6 +329,12 @@ async def handle_controller(request):
     if not session_user:
         return web.json_response({"error": "Unauthorized"}, status=401)
 
+    username = (session_user.get("username") or "").strip().lower()
+    if state.table_state in ("calibrating", "playing"):
+        authorized = state.current_match.get("red", []) + state.current_match.get("blue", [])
+        if authorized and username not in authorized:
+            return web.json_response({"error": "Table occupied by another match"}, status=403)
+
     ws = web.WebSocketResponse(heartbeat=20)
     await ws.prepare(request)
     state.controllers.add(ws)
@@ -323,6 +344,7 @@ async def handle_controller(request):
         "state": state.table_state,
         "camera_connected": state.camera_ws is not None and not state.camera_ws.closed,
         "match": state.current_match,
+        "score": dict(game.score),
     }))
 
     try:
@@ -371,8 +393,6 @@ async def handle_controller(request):
                 break
     finally:
         state.controllers.discard(ws)
-        if not state.match_over and state.table_state in ("playing", "calibrating"):
-            await _force_end_match()
     return ws
 
 async def handle_spectator(request):
@@ -390,6 +410,12 @@ async def handle_spectator(request):
     state.spectators.add(ws)
     if username:
         state.spectator_users[ws] = username
+
+    await ws.send_str(json.dumps({
+        "type": "table_status",
+        "state": state.table_state,
+        "match": state.current_match,
+    }))
 
     # Push any pending invite immediately on connect
     if username:

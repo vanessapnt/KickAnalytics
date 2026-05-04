@@ -1,5 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { getWsBase } from '../utils/wsBase';
+
+const ROD_2V2_ROLE = {
+  blue_goalkeeper: 'defender', blue_defense: 'defender',
+  red_midfield: 'attacker',   blue_midfield: 'attacker',
+  red_midfield2: 'attacker',  blue_attack: 'attacker',
+  red_defense: 'defender',    red_goalkeeper: 'defender',
+};
 import '../styles/home.css';
 import LiveSection   from '../components/LiveSection';
 import JouerSection  from '../components/JouerSection';
@@ -24,11 +31,17 @@ export default function IndexPage() {
   const [goalFlash, setGoalFlash]   = useState(null);
   const [replayFrames, setReplayFrames] = useState(null);
   const [goals, setGoals]           = useState([]);
+  const [recentContacts, setRecentContacts] = useState([]);
+  const contactCountsRef = useRef({ red: 0, blue: 0 });
+  const [contactCounts, setContactCounts]   = useState({ red: 0, blue: 0 });
   const matchStartRef = useRef(null);
+  const [matchStart, setMatchStart] = useState(null);
   const wsRef = useRef(null);
 
   const [matchPlayers, setMatchPlayers]   = useState(null);
   const [tableData, setTableData]         = useState(null);
+  const [currentMatch, setCurrentMatch]   = useState(null);
+  const currentMatchRef = useRef(null);
   const [leaderboard, setLeaderboard]     = useState(null);
   const [pendingInvite, setPendingInvite]         = useState(null);
   const [acceptedUsernames, setAcceptedUsernames] = useState(new Set());
@@ -48,6 +61,18 @@ export default function IndexPage() {
     }).catch(() => {});
   }, []);
 
+  const getScorerName = useCallback((team, rod) => {
+    const cm = currentMatchRef.current;
+    if (!cm) return team === 'red' ? 'Red' : 'Blue';
+    const players = cm[team] || [];
+    if (cm.mode !== '2v2' || players.length < 2) return players[0] || (team === 'red' ? 'Red' : 'Blue');
+    const role = rod ? ROD_2V2_ROLE[rod] : null;
+    if (!role) return players[0];
+    const roles = cm.roles?.[team] || ['attacker', 'defender'];
+    const idx = roles.indexOf(role);
+    return players[idx >= 0 ? idx : 0] || players[0];
+  }, []);
+
   const connectSpectator = useCallback(() => {
     if (wsRef.current) return;
     let opened = false;
@@ -65,9 +90,9 @@ export default function IndexPage() {
     };
     wsRef.current.onmessage = (e) => {
       const d = JSON.parse(e.data);
-      if (d.type === 'table_status')    { setTableData(d); return; }
+      if (d.type === 'table_status')    { setTableData(d); if (d.match) { setCurrentMatch(d.match); currentMatchRef.current = d.match; } return; }
       if (d.type === 'match_paused')    { setLiveStatus({ text: '⏸ Match paused', type: 'err' }); setShowPauseOverlay(true); }
-      if (d.type === 'calibration_ok')  { setLiveStatus({ text: '🟢 Match in progress', type: 'ok' }); setScoreRed(0); setScoreBlue(0); setGoals([]); matchStartRef.current = Date.now(); fetch('/api/live/players').then(r => r.ok ? r.json() : null).then(p => { if (p) setMatchPlayers(p); }).catch(() => {}); }
+      if (d.type === 'calibration_ok')  { setLiveStatus({ text: '🟢 Match in progress', type: 'ok' }); setScoreRed(0); setScoreBlue(0); setGoals([]); setRecentContacts([]); setContactCounts({ red: 0, blue: 0 }); contactCountsRef.current = { red: 0, blue: 0 }; const now = Date.now(); matchStartRef.current = now; setMatchStart(now); fetch('/api/live/players').then(r => r.ok ? r.json() : null).then(p => { if (p) setMatchPlayers(p); }).catch(() => {}); }
       if (d.type === 'calibration_failed') setLiveStatus({ text: '❌ Calibration failed', type: 'err' });
       if (d.type === 'position') {
         setBallPos({ x: d.x, y: d.y });
@@ -78,9 +103,15 @@ export default function IndexPage() {
         setScoreRed(d.score.red); setScoreBlue(d.score.blue);
         setGoalFlash({ team: d.team, rod: d.rod, key: Date.now() });
         const minute = matchStartRef.current ? Math.max(1, Math.round((Date.now() - matchStartRef.current) / 60000)) : '?';
-        setGoals(prev => [...prev, { team: d.team, minute }]);
+        const scorer = getScorerName(d.team, d.rod);
+        setGoals(prev => [...prev, { team: d.team, minute, scorer }]);
       }
-      if (d.type === 'match_end') { setLiveStatus({ text: '🏁 Match over', type: '' }); setTableData(t => ({ ...t, state: 'free' })); setMatchPlayers(null); }
+      if (d.type === 'contact') {
+        contactCountsRef.current[d.team]++;
+        setContactCounts({ ...contactCountsRef.current });
+        setRecentContacts(prev => [...prev.slice(-7), d]);
+      }
+      if (d.type === 'match_end') { setLiveStatus({ text: '🏁 Match over', type: '' }); setTableData(t => ({ ...t, state: 'free' })); setMatchPlayers(null); setRecentContacts([]); setContactCounts({ red: 0, blue: 0 }); contactCountsRef.current = { red: 0, blue: 0 }; setMatchStart(null); }
       if (d.type === 'replay')    setReplayFrames(d.frames);
       if (d.type === 'match_invite')    setPendingInvite(d);
       if (d.type === 'player_accepted') setAcceptedUsernames(prev => new Set([...prev, d.username]));
@@ -93,7 +124,7 @@ export default function IndexPage() {
         }
       }
     };
-  }, []);
+  }, [getScorerName]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -156,7 +187,7 @@ export default function IndexPage() {
 
   return (
     <>
-      <header>
+      {activeSection !== 'live' && <header>
         <div className="logo">KickAnalytics</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button className="header-avatar" onClick={openProfile} title="Mon compte">
@@ -168,7 +199,7 @@ export default function IndexPage() {
             Sign out
           </button>
         </div>
-      </header>
+      </header>}
 
       {activeSection === 'home' && (
         <div className="section active">
@@ -191,9 +222,9 @@ export default function IndexPage() {
                       const rows = Math.max(redGoals.length, blueGoals.length);
                       return Array.from({ length: rows }).map((_, i) => (
                         <div key={i} className="match-goal-row">
-                          <span className="match-goal-red">{redGoals[i]  ? `Red ${redGoals[i].minute}'`  : ''}</span>
+                          <span className="match-goal-red">{redGoals[i]  ? `${redGoals[i].scorer} ${redGoals[i].minute}'`  : ''}</span>
                           <span>⚽</span>
-                          <span className="match-goal-blue">{blueGoals[i] ? `${blueGoals[i].minute}' Blue` : ''}</span>
+                          <span className="match-goal-blue">{blueGoals[i] ? `${blueGoals[i].minute}' ${blueGoals[i].scorer}` : ''}</span>
                         </div>
                       ));
                     })()}
@@ -220,6 +251,10 @@ export default function IndexPage() {
           latency={latency} ballPos={ballPos} showPauseOverlay={showPauseOverlay}
           goalFlash={goalFlash} replayFrames={replayFrames} goals={goals}
           matchPlayers={matchPlayers}
+          contactCounts={contactCounts}
+          recentContacts={recentContacts}
+          matchStart={matchStart}
+          onBack={() => setActiveSection('home')}
         />
       )}
 
@@ -228,6 +263,7 @@ export default function IndexPage() {
           currentUser={currentUser}
           isAdmin={isAdmin}
           tableData={tableData}
+          currentMatch={currentMatch}
           pendingInvite={pendingInvite}
           acceptedUsernames={acceptedUsernames}
           onAcceptInvite={acceptInvite}
@@ -263,12 +299,22 @@ export default function IndexPage() {
         </div>
       )}
 
-      <footer>
+      {activeSection !== 'live' && <footer>
         <button className={activeSection === 'home'  ? 'active' : ''} onClick={() => setActiveSection('home')} ><span className="icon">🏠</span>Home</button>
         <button className={activeSection === 'live'  ? 'active' : ''} onClick={() => setActiveSection('live')} ><span className="icon">📺</span>Live</button>
         {isAdmin
           ? <button onClick={() => { document.cookie = 'ka_page_access=camera; Path=/; SameSite=Lax'; window.location.href = '/camera'; }}><span className="icon">📷</span>Record</button>
-          : <button className={activeSection === 'jouer' ? 'active' : ''} onClick={() => setActiveSection('jouer')}>
+          : <button className={activeSection === 'jouer' ? 'active' : ''} onClick={() => {
+              const me = currentUserRef.current?.username;
+              const inMatch = me && currentMatch && tableData?.state !== 'free' &&
+                ([...(currentMatch.red || []), ...(currentMatch.blue || [])].includes(me));
+              if (inMatch) {
+                document.cookie = 'ka_page_access=controller; Path=/; SameSite=Lax';
+                window.location.href = '/controller';
+              } else {
+                setActiveSection('jouer');
+              }
+            }}>
               <span className="icon" style={{ position: 'relative', display: 'inline-block' }}>
                 🎮
                 {pendingInvite && <span style={{ position: 'absolute', top: '-2px', right: '-4px', width: '8px', height: '8px', borderRadius: '50%', background: 'var(--red)', border: '1.5px solid var(--bg)' }} />}
@@ -277,7 +323,7 @@ export default function IndexPage() {
             </button>
         }
         <button className={activeSection === 'stats' ? 'active' : ''} onClick={() => setActiveSection('stats')}><span className="icon">🏆</span>Leaderboard</button>
-      </footer>
+      </footer>}
 
       <ProfileDrawer
         show={showProfile} currentUser={currentUser} stats={profileStats}

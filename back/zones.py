@@ -92,6 +92,47 @@ def detect_contacts(ball_history):
     return contacts
 
 
+def check_latest_contact(ball_history):
+    """Check if the second-to-last point in ball_history is a contact. O(1)."""
+    h = ball_history
+    if len(h) < 3:
+        return None
+    i = len(h) - 2
+    p0, p1, p2 = h[i - 1], h[i], h[i + 1]
+
+    dt0 = (p1["t"] - p0["t"]) / 1000.0
+    dt1 = (p2["t"] - p1["t"]) / 1000.0
+    if dt0 > MAX_GAP_S or dt1 > MAX_GAP_S:
+        return None
+    dt0 = max(dt0, 0.001)
+    dt1 = max(dt1, 0.001)
+
+    vx0 = (p1["x"] - p0["x"]) / dt0
+    vx1 = (p2["x"] - p1["x"]) / dt1
+
+    if (p1["x"] < WALL_MARGIN_PX or p1["x"] > CANVAS_W - WALL_MARGIN_PX) and vx0 * vx1 < 0:
+        return None
+
+    scale = dt1 / dt0
+    dev_x = p2["x"] - (p1["x"] + (p1["x"] - p0["x"]) * scale)
+    dev_y = p2["y"] - (p1["y"] + (p1["y"] - p0["y"]) * scale)
+    deviation = math.sqrt(dev_x * dev_x + dev_y * dev_y)
+
+    if deviation < CONTACT_DEVIATION_PX and abs(dev_x) < DEV_AXIS_PX and abs(dev_y) < DEV_AXIS_PX:
+        return None
+
+    rod_idx = _nearest_rod(p1["y"])
+    if rod_idx in GOALKEEPER_RODS and not (GOAL_X1 <= p1["x"] <= GOAL_X2):
+        return None
+
+    rod = RODS[rod_idx]
+    return {
+        "x": p1["x"], "y": p1["y"], "t": p1["t"],
+        "team": rod["team"], "name": rod["name"],
+        "deviation": round(deviation, 1),
+    }
+
+
 def _possession(ball_history):
     if len(ball_history) < 2:
         return 50.0, 50.0

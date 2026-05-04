@@ -6,10 +6,10 @@ const SLOT_CONFIGS = {
     { key: 'b0', team: 'blue' },
   ],
   '4p': [
-    { key: 'r0', team: 'red'  },
-    { key: 'r1', team: 'red'  },
-    { key: 'b0', team: 'blue' },
-    { key: 'b1', team: 'blue' },
+    { key: 'r0', team: 'red',  role: 'Attaquant' },
+    { key: 'r1', team: 'red',  role: 'Défenseur' },
+    { key: 'b0', team: 'blue', role: 'Attaquant' },
+    { key: 'b1', team: 'blue', role: 'Défenseur' },
   ],
 };
 
@@ -19,7 +19,7 @@ const TABLE_LABELS = {
   playing:     ['🔴 Match in progress', 'Match in progress'],
 };
 
-export default function JouerSection({ currentUser, tableData, pendingInvite, acceptedUsernames, onAcceptInvite, onMatchStarted, onReset }) {
+export default function JouerSection({ currentUser, tableData, currentMatch, pendingInvite, acceptedUsernames, onAcceptInvite, onMatchStarted, onReset }) {
   const [mode, setMode]       = useState(null);
   const [values, setValues]   = useState({ r0: '', r1: '', b0: '', b1: '' });
   const [matchId, setMatchId] = useState(null);
@@ -86,6 +86,31 @@ export default function JouerSection({ currentUser, tableData, pendingInvite, ac
     onReset?.();
   };
 
+  const tableOccupied = tableData && tableData.state !== 'free';
+  const myUsername = currentUser?.username;
+  const amInMatch = tableOccupied && currentMatch &&
+    [...(currentMatch.red || []), ...(currentMatch.blue || [])].includes(myUsername);
+
+  if (tableOccupied && !amInMatch) {
+    const red  = currentMatch?.red  || [];
+    const blue = currentMatch?.blue || [];
+    return (
+      <div className="section active">
+        <div className="page-content" style={{ maxWidth: '520px' }}>
+          <div style={s.card}>
+            <div style={{ fontSize: '15px', fontWeight: 900, color: 'var(--text)' }}>🔴 Table occupée</div>
+            <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.7 }}>
+              Un match est en cours :<br />
+              <span style={{ color: '#e50914', fontWeight: 700 }}>Rouge : {red.join(', ') || '—'}</span><br />
+              <span style={{ color: '#42a5f5', fontWeight: 700 }}>Bleu : {blue.join(', ') || '—'}</span>
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Reviens quand la table sera libre pour lancer une partie.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="section active">
       <div className="page-content" style={{ maxWidth: '520px' }}>
@@ -135,6 +160,7 @@ export default function JouerSection({ currentUser, tableData, pendingInvite, ac
                     sent={invitesSent}
                     accepted={isSlotAccepted(sl.key)}
                     loading={loading}
+                    role={sl.role}
                   />
                 ))}
 
@@ -148,6 +174,7 @@ export default function JouerSection({ currentUser, tableData, pendingInvite, ac
                     sent={invitesSent}
                     accepted={isSlotAccepted(sl.key)}
                     loading={loading}
+                    role={sl.role}
                   />
                 ))}
               </div>
@@ -189,9 +216,11 @@ export default function JouerSection({ currentUser, tableData, pendingInvite, ac
   );
 }
 
-function SlotRow({ value, onChange, onSend, disabled, sent, accepted, loading }) {
+function SlotRow({ value, onChange, onSend, disabled, sent, accepted, loading, role }) {
   return (
-    <div style={sr.row}>
+    <div style={sr.wrap}>
+      {role && <span style={sr.roleLabel}>{role}</span>}
+      <div style={sr.row}>
       <input
         className="auth-input"
         style={sr.input}
@@ -210,6 +239,7 @@ function SlotRow({ value, onChange, onSend, disabled, sent, accepted, loading })
       ) : (
         <span style={sr.statusIcon}>{accepted ? '✅' : '⏳'}</span>
       )}
+    </div>
     </div>
   );
 }
@@ -230,6 +260,8 @@ const s = {
 };
 
 const sr = {
+  wrap:       { display: 'flex', flexDirection: 'column', gap: '2px' },
+  roleLabel:  { fontSize: '10px', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', paddingLeft: '2px' },
   row:        { display: 'flex', alignItems: 'center', gap: '8px' },
   input:      { flex: 1, margin: 0 },
   arrowBtn:   { width: '36px', height: '36px', borderRadius: '50%', border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0 },

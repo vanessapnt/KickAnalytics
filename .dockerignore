@@ -3,3 +3,4 @@ Makefile
 Dockerfile
 .git/
 __pycache__/
+.claude

@@ -1,4 +1,5 @@
 import json
+import asyncio
 import bcrypt
 from aiohttp import web
 
@@ -374,6 +375,10 @@ async def api_start_match(request):
 
     username = (session_user.get("username") or "").strip().lower()
     match_id = request.match_info["match_id"]
+
+    if state.table_state != "free":
+        return _resp({"error": "Table is occupied by another match"}, 409)
+
     pool = get_pool()
 
     async with pool.acquire() as conn:
@@ -407,6 +412,12 @@ async def api_start_match(request):
     }
     state.table_state = "calibrating"
     state.match_over  = False
+
+    status_msg = json.dumps({"type": "table_status", "state": "calibrating", "match": state.current_match})
+    await asyncio.gather(
+        *[ws.send_str(status_msg) for ws in state.spectators.copy() if not ws.closed],
+        return_exceptions=True
+    )
 
     return _resp({"ok": True, "mode": mode, "red": red, "blue": blue})
 

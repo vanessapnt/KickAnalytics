@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getWsBase } from '../utils/wsBase';
 
@@ -11,11 +11,11 @@ export function useControllerWs() {
   const [match,  setMatch]  = useState({ red: [], blue: [], mode: '1v1' });
   const [score,  setScore]  = useState({ red: 0, blue: 0 });
   const [status, setStatus] = useState({ text: 'Disconnected', type: '' });
-  const [previewMode, setPreviewMode] = useState('empty'); // 'empty' | 'image' | 'none'
+  const [previewMode, setPreviewMode] = useState('empty');
   const [previewImage, setPreviewImage] = useState(null);
   const [previewHint,  setPreviewHint]  = useState(false);
   const [showCalibrationButtons, setShowCalibrationButtons] = useState(false);
-  const [showStop,   setShowStop]   = useState(false);
+  const [showStop,   setShowStop]   = useState(true);
   const [showReplay, setShowReplay] = useState(false);
   const [eloData,    setEloData]    = useState(null);
 
@@ -66,6 +66,7 @@ export function useControllerWs() {
 
       if (d.type === 'table_status') {
         if (d.match?.red?.length) setMatch(d.match);
+        if (d.score) setScore({ red: d.score.red ?? 0, blue: d.score.blue ?? 0 });
         if (d.camera_connected) setStatus({ text: '📱 Camera connected', type: '' });
       }
       if (d.type === 'calibration_preview') {
@@ -140,6 +141,31 @@ export function useControllerWs() {
     wsRef.current?.close();
     navigate('/');
   }, [navigate]);
+
+  useEffect(() => { connect(); }, [connect]);
+
+  useEffect(() => {
+    if (!navigator.locks) return;
+    const ctrl = new AbortController();
+    navigator.locks.request(
+      'controller-ws-active',
+      { mode: 'shared', signal: ctrl.signal },
+      () => new Promise(() => {})
+    ).catch(() => {});
+    return () => ctrl.abort();
+  }, []);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      const ws = wsRef.current;
+      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        connect();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [connect]);
 
   return {
     connecting, match, score, status,

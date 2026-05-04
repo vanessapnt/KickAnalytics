@@ -109,13 +109,6 @@ export default function ControllerPage() {
           <div className="controls-col">
 
             <div>
-              <div className="section-title">Connection</div>
-              <button className="btn-dark" onClick={ctrl.connect} disabled={ctrl.connecting}>
-                🔌 Connect
-              </button>
-            </div>
-
-            <div>
               <div className="section-title">Field calibration</div>
               <div className="btn-row">
                 <button className="btn-red" onClick={ctrl.triggerCalibration}>

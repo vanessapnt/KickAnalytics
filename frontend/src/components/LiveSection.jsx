@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 
 const CW = 880, CH = 450;
 const GOAL_DEPTH = 40;
@@ -76,37 +76,76 @@ function drawField(ctx) {
   ctx.fillText('BUT ROUGE', 0, 4); ctx.restore();
 }
 
-function PlayerCard({ player }) {
+function MiniAvatar({ player, alignRight }) {
   const letter = (player.display_name || player.username || '?')[0].toUpperCase();
   return (
-    <div className="comp-player">
-      <div className="comp-av">
+    <div className={`lstats-av-wrap${alignRight ? ' right' : ''}`}>
+      <div className={`lstats-av${alignRight ? ' blue' : ' red'}`}>
         {player.avatar
-          ? <img src={player.avatar} className="comp-av-img" alt="" />
+          ? <img src={player.avatar} className="lstats-av-img" alt="" />
           : letter}
       </div>
-      <div className="comp-info">
-        <div className="comp-uname">@{player.username}</div>
-        <div className="comp-elo-val">{player.elo} ELO</div>
+      <div className="lstats-av-name">{player.display_name || player.username}</div>
+    </div>
+  );
+}
+
+function PossRing({ red }) {
+  const R = 24, circ = 2 * Math.PI * R, gap = 4;
+  const redLen = (red / 100) * circ;
+  return (
+    <svg width="64" height="64" viewBox="0 0 64 64" style={{ display: 'block', flexShrink: 0 }}>
+      <circle cx="32" cy="32" r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
+      <circle cx="32" cy="32" r={R} fill="none" stroke="#c0392b" strokeWidth="8"
+        strokeDasharray={`${Math.max(0, redLen - gap / 2)} ${circ}`}
+        transform="rotate(-90 32 32)" />
+      <circle cx="32" cy="32" r={R} fill="none" stroke="#1565c0" strokeWidth="8"
+        strokeDasharray={`${Math.max(0, circ - redLen - gap / 2)} ${circ}`}
+        strokeDashoffset={-(redLen + gap / 2)}
+        transform="rotate(-90 32 32)" />
+    </svg>
+  );
+}
+
+function StatSplit({ label, red, blue }) {
+  const total = red + blue;
+  const redPct = total === 0 ? 50 : Math.round((red / total) * 100);
+  return (
+    <div className="lstat-split">
+      <div className="lstat-split-row">
+        <span className="lstat-n lstat-n-red">{red}</span>
+        <span className="lstat-split-lbl">{label}</span>
+        <span className="lstat-n lstat-n-blue">{blue}</span>
       </div>
-      <div className="comp-deltas">
-        <span className="comp-delta win">{player.win_delta >= 0 ? '+' : ''}{player.win_delta}</span>
-        <span className="comp-delta loss">{player.loss_delta}</span>
+      <div className="lstat-bar">
+        <div className="lstat-bar-red" style={{ width: redPct + '%' }} />
+        <div className="lstat-bar-blue" style={{ width: (100 - redPct) + '%' }} />
       </div>
     </div>
   );
 }
 
-export default function LiveSection({ scoreRed, scoreBlue, liveStatus, latency, ballPos, showPauseOverlay, goalFlash, replayFrames, goals, matchPlayers }) {
-  const canvasRef     = useRef(null);
-  const ctxRef        = useRef(null);
-  const replayWrapRef = useRef(null);
-  const replayImgRef  = useRef(null);
-  const goalFlashRef  = useRef(null);
-  const goalTimerRef  = useRef(null);
-  const trailRef      = useRef([]);
+export default function LiveSection({ scoreRed, scoreBlue, liveStatus, latency, ballPos, showPauseOverlay, goalFlash, replayFrames, goals, matchPlayers, liveStats, contactCounts, recentContacts, matchStart, onBack }) {
+  const canvasRef          = useRef(null);
+  const ctxRef             = useRef(null);
+  const replayWrapRef      = useRef(null);
+  const replayImgRef       = useRef(null);
+  const goalFlashRef       = useRef(null);
+  const goalTimerRef       = useRef(null);
+  const trailRef           = useRef([]);
+  const recentContactsRef  = useRef([]);
   const [showRotate, setShowRotate] = useState(false);
   const [hasReplay, setHasReplay]   = useState(false);
+  const [elapsed, setElapsed]       = useState(0);
+
+  useEffect(() => { recentContactsRef.current = recentContacts || []; }, [recentContacts]);
+
+  const redContacts   = contactCounts?.red  ?? 0;
+  const blueContacts  = contactCounts?.blue ?? 0;
+  const totalContacts = redContacts + blueContacts;
+  const possession = totalContacts === 0
+    ? { red: 50, blue: 50 }
+    : { red: Math.round(redContacts / totalContacts * 100), blue: Math.round(blueContacts / totalContacts * 100) };
 
   useEffect(() => {
     if (window.innerHeight > window.innerWidth) {
@@ -131,6 +170,23 @@ export default function LiveSection({ scoreRed, scoreBlue, liveStatus, latency, 
     const cy = ballPos.x * CH;
     trailRef.current = [...trailRef.current.slice(-(TRAIL_LEN - 1)), { x: cx, y: cy }];
     drawField(ctx);
+
+    const now = Date.now();
+    recentContactsRef.current.forEach(c => {
+      const age = now - c.t;
+      const fade = Math.max(0, 1 - age / 4000);
+      if (fade <= 0) return;
+      const ccx = FIELD_X0 + c.y * FIELD_W;
+      const ccy = c.x * CH;
+      const r = 5 + Math.min((c.deviation || 0) / 100, 1) * 8;
+      ctx.globalAlpha = fade * 0.88;
+      ctx.beginPath(); ctx.arc(ccx, ccy, r, 0, Math.PI * 2);
+      ctx.fillStyle   = c.team === 'blue' ? 'rgba(66,165,245,0.85)' : 'rgba(239,83,80,0.85)';
+      ctx.strokeStyle = c.team === 'blue' ? '#42a5f5' : '#ef5350';
+      ctx.fill(); ctx.lineWidth = 1.5; ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+
     const trail = trailRef.current;
     for (let i = 0; i < trail.length - 1; i++) {
       ctx.globalAlpha = ((i + 1) / trail.length) * 0.45;
@@ -173,6 +229,22 @@ export default function LiveSection({ scoreRed, scoreBlue, liveStatus, latency, 
     next();
   }, [replayFrames]);
 
+  useEffect(() => {
+    if (!matchStart) { setElapsed(0); return; }
+    setElapsed(Math.floor((Date.now() - matchStart) / 1000));
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - matchStart) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [matchStart]);
+
+  const fmtTime = useCallback((s) => {
+    const m = Math.floor(s / 60).toString().padStart(2, '0');
+    const sec = (s % 60).toString().padStart(2, '0');
+    return `${m}:${sec}`;
+  }, []);
+
+  const redName  = matchPlayers?.red?.map(p => p.display_name || p.username).join(' & ') || 'Red';
+  const blueName = matchPlayers?.blue?.map(p => p.display_name || p.username).join(' & ') || 'Blue';
+
   const total   = scoreRed + scoreBlue;
   const domPct  = total === 0 ? 50 : Math.round(scoreRed / total * 100);
   const redGoals  = (goals || []).filter(g => g.team === 'red');
@@ -188,68 +260,90 @@ export default function LiveSection({ scoreRed, scoreBlue, liveStatus, latency, 
         </div>
       )}
 
-      <div className="live-score-header">
-        <div className="lsh-team">
-          <div className="team-badge red">🔴</div>
-          <div className="lsh-team-info">
-            <span className="lsh-team-name">Red</span>
-            <div className="lsh-goals">
-              {redGoals.map((g, i) => <span key={i} className="lsh-goal-min">⚽ {g.minute}'</span>)}
+      <div className="live-topbar">
+        <div className="ltb-logo">KickAnalytics</div>
+
+        <div className="ltb-match">
+          <div className="ltb-scoreline">
+            <span className="ltb-name ltb-name-red">{redName}</span>
+            <div className="ltb-score">
+              <span className="ltb-num">{scoreRed}</span>
+              <span className="ltb-sep">–</span>
+              <span className="ltb-num">{scoreBlue}</span>
             </div>
+            <span className="ltb-name ltb-name-blue">{blueName}</span>
+            {matchStart && <span className="ltb-timer">{fmtTime(elapsed)}</span>}
           </div>
+          {goals.length > 0 && (
+            <div className="ltb-goals">
+              {goals.map((g, i) => (
+                <span key={i} className={`ltb-goal ltb-goal-${g.team}`}>⚽ {g.scorer} {g.minute}'</span>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="lsh-center">
-          <div className="lsh-score">
-            <span className="lsh-num">{scoreRed}</span>
-            <span className="lsh-sep">–</span>
-            <span className="lsh-num">{scoreBlue}</span>
-          </div>
-          <div className="lsh-dom-bar">
-            <div className="lsh-dom-fill" style={{ width: domPct + '%' }} />
-          </div>
-          <div className="lsh-footer">
-            <span className={`status-tag${liveStatus.type ? ' ' + liveStatus.type : ''}`}>{liveStatus.text}</span>
-            <span className="lsh-latency">{latency}</span>
-          </div>
-        </div>
-
-        <div className="lsh-team lsh-team-right">
-          <div className="lsh-team-info right">
-            <span className="lsh-team-name">Blue</span>
-            <div className="lsh-goals">
-              {blueGoals.map((g, i) => <span key={i} className="lsh-goal-min">⚽ {g.minute}'</span>)}
-            </div>
-          </div>
-          <div className="team-badge blue">🔵</div>
-        </div>
+        <button className="ltb-back" onClick={onBack}>←</button>
       </div>
 
       <div className="live-body">
 
         <div className="live-stats-col">
-          <div className="live-panel" style={{ flex: 1 }}>
-            <div className="live-panel-title">Match Stats</div>
-            <div className="live-stat-row">
-              <span className="live-stat-label">🔴 Goals</span>
-              <span className="live-stat-val">{scoreRed}</span>
+          <div className="live-panel lstats-panel">
+            <div className="lstats-header">
+              <span className="lstats-dot" />
+              LIVE STATISTIQUES
             </div>
-            <div className="live-stat-row">
-              <span className="live-stat-label">🔵 Goals</span>
-              <span className="live-stat-val">{scoreBlue}</span>
+
+            {matchPlayers && (matchPlayers.red.length > 0 || matchPlayers.blue.length > 0) ? (
+              <div className="lstats-players">
+                <div className="lstats-team">
+                  {matchPlayers.red.map(p => <MiniAvatar key={p.username} player={p} />)}
+                </div>
+                <div className="lstats-team">
+                  {matchPlayers.blue.map(p => <MiniAvatar key={p.username} player={p} alignRight />)}
+                </div>
+              </div>
+            ) : (
+              <div className="lstats-no-match">Aucun match en cours</div>
+            )}
+
+            <div className="lstats-divider" />
+
+            <div className="lstats-poss-row">
+              <div className="lstats-poss-side">
+                <div className="lstats-poss-val lstats-poss-red">{possession.red}%</div>
+                <div className="lstats-poss-team-lbl">Rouge</div>
+              </div>
+              <PossRing red={possession.red} />
+              <div className="lstats-poss-side right">
+                <div className="lstats-poss-val lstats-poss-blue">{possession.blue}%</div>
+                <div className="lstats-poss-team-lbl">Bleu</div>
+              </div>
             </div>
-            <div className="live-stat-row">
-              <span className="live-stat-label">Red possession</span>
-              <span className="live-stat-val">{domPct}%</span>
+            <div className="lstats-poss-lbl">Possession</div>
+
+            <div className="lstats-divider" />
+
+            <div className="lstats-stats">
+              <StatSplit label="Buts" red={scoreRed} blue={scoreBlue} />
+              <StatSplit label="Contacts" red={redContacts} blue={totalContacts - redContacts} />
             </div>
-            <div className="live-stat-row">
-              <span className="live-stat-label">Blue possession</span>
-              <span className="live-stat-val">{100 - domPct}%</span>
-            </div>
-            <div className="live-stat-row">
-              <span className="live-stat-label">Latency</span>
-              <span className="live-stat-val">{latency}</span>
-            </div>
+
+            {recentContacts && recentContacts.length > 0 && (
+              <>
+                <div className="lstats-divider" />
+                <div className="lstats-contacts">
+                  {[...recentContacts].reverse().map((c, i) => (
+                    <div key={i} className={`lstats-contact ${c.team}`}>
+                      <span className="lstats-contact-dot" />
+                      <span className="lstats-contact-rod">{c.rod.replace('_', ' ')}</span>
+                      <span className="lstats-contact-dev">{c.deviation}px</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -278,10 +372,10 @@ export default function LiveSection({ scoreRed, scoreBlue, liveStatus, latency, 
             {matchPlayers && (matchPlayers.red.length > 0 || matchPlayers.blue.length > 0) ? (
               <>
                 <div className="comp-team-bar">🔴 Red</div>
-                {matchPlayers.red.map(p => <PlayerCard key={p.username} player={p} />)}
+                {matchPlayers.red.map(p => <MiniAvatar key={p.username} player={p} />)}
                 <div className="comp-sep" />
                 <div className="comp-team-bar">🔵 Blue</div>
-                {matchPlayers.blue.map(p => <PlayerCard key={p.username} player={p} />)}
+                {matchPlayers.blue.map(p => <MiniAvatar key={p.username} player={p} alignRight />)}
               </>
             ) : (
               <div className="comp-empty">No match in progress</div>
@@ -289,7 +383,6 @@ export default function LiveSection({ scoreRed, scoreBlue, liveStatus, latency, 
           </div>
         </div>
 
-        {/* Row 2 - Col 1: Reactions */}
         <div className="live-reactions-col">
           <div className="live-panel" style={{ flex: 1 }}>
             <div className="live-panel-title">Reactions</div>
