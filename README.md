@@ -1,4 +1,8 @@
-Real-time Foosball Analytics System
+### Real-time Foosball Analytics System
+
+Try it here :
+
+[![Live](https://img.shields.io/badge/live-kickanalytics.live-blue?style=flat-square)](https://kickanalytics.live)
 
 Built a custom dataset and annotation pipeline (Roboflow) and trained a YOLOv8 model, optimized with ONNX Runtime
 (INT8 quantization, -75% model size).
