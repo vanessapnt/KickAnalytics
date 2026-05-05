@@ -95,6 +95,8 @@ configure-gcloud:
 
 deploy-gcloud: frontend-build
 	PATH="$$HOME/google-cloud-sdk/bin:$$PATH" gcloud builds submit --tag gcr.io/$${PROJECT_ID}/$(IMAGE_NAME)
+	@printf 'DATABASE_URL: "%s"\nCORS_ORIGINS: "%s"\nENV: "%s"\nSESSION_SECRET: "%s"\nADMIN_USERNAMES: "%s"\n' \
+		"$${DATABASE_URL}" "$${CORS_ORIGINS}" "$${ENV}" "$${SESSION_SECRET}" "$${ADMIN_USERNAMES}" > /tmp/ka-env-vars.yaml
 	PATH="$$HOME/google-cloud-sdk/bin:$$PATH" gcloud run deploy $(IMAGE_NAME) \
 		--image gcr.io/$${PROJECT_ID}/$(IMAGE_NAME) \
 		--platform managed \
@@ -107,7 +109,8 @@ deploy-gcloud: frontend-build
 		--max-instances 1 \
 		--timeout 3600 \
 		--no-cpu-throttling \
-		--set-env-vars DATABASE_URL=$${DATABASE_URL},CORS_ORIGINS=$${CORS_ORIGINS},ENV=$${ENV},SESSION_SECRET=$${SESSION_SECRET},ADMIN_USERNAMES=$${ADMIN_USERNAMES}
+		--env-vars-file /tmp/ka-env-vars.yaml
+	@rm -f /tmp/ka-env-vars.yaml
 
 dev-server:
 	ENV=development python3 back/server.py

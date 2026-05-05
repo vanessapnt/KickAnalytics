@@ -1,0 +1,12 @@
+.gcloudignore
+.venv/
+.claude
+__pycache__/
+.env
+*.mp4
+*.MOV
+*.onnx
+!back/model.onnx
+test_pipeline.html
+frontend/public/pipeline_data/
+frontend/dist/
