@@ -28,7 +28,7 @@ def frame_to_b64(frame, quality=75):
     return base64.b64encode(buf.tobytes()).decode() if ok else ""
 
 def main():
-    video_path  = sys.argv[1] if len(sys.argv) > 1 else "test.mp4"
+    video_path  = sys.argv[1] if len(sys.argv) > 1 else "test2.mp4"
     server_fps  = float(sys.argv[2]) if len(sys.argv) > 2 else 14.0
     max_frames  = int(sys.argv[3])   if len(sys.argv) > 3 else 500
 

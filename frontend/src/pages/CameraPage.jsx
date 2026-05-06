@@ -122,13 +122,24 @@ export default function CameraPage() {
     startInProgressRef.current = true;
     setStartDisabled(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
-      streamRef.current = stream;
+      // const stream = await navigator.mediaDevices.getUserMedia({
+      //   video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      //   audio: false,
+      // });
+      // streamRef.current = stream;
+      // const v = videoRef.current;
+      // if (v) v.srcObject = stream;
+
       const v = videoRef.current;
-      if (v) v.srcObject = stream;
+      if (v) {
+        v.src = '/test.mp4';
+        v.loop = true;
+        await new Promise((res, rej) => {
+          v.onloadedmetadata = res;
+          v.onerror = rej;
+        });
+        await v.play();
+      }
 
       const wsUrl = `${getWsBase()}/camera`;
       function setupSocket() {

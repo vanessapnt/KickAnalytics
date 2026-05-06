@@ -25,7 +25,6 @@ info:
 	@echo ""
 	@echo "📱 LOCAL TESTING WITH PHONE :"
 	@echo "   1. make test           # Terminal 1 — start container"
-	@echo "   2. make tunnel         # Terminal 2 — expose to phone"
 	@echo ""
 	@echo "⚛️  REACT FRONTEND :"
 	@echo "   make frontend-build    # Build React -> frontend/dist/ (done automatically by make test)"
@@ -50,15 +49,6 @@ install-docker:
 	sudo usermod -aG docker $$USER
 	@echo "Restart your terminal or run: newgrp docker"
 
-install-ngrok:
-	curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
-	| sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null \
-	&& echo "deb https://ngrok-agent.s3.amazonaws.com bookworm main" \
-	| sudo tee /etc/apt/sources.list.d/ngrok.list \
-	&& sudo apt update \
-	&& sudo apt install ngrok
-	@echo "Run: ngrok config add-authtoken <token>"
-
 install-gcloud:
 	curl -sSL https://sdk.cloud.google.com | bash -s -- --disable-prompts
 	@echo "Run: source ~/.bashrc"
@@ -69,8 +59,13 @@ build: frontend-build
 run-local:
 	docker run -p $(HTTP_PORT):8080 --memory=2g --env-file .env -e ENV=$${ENV} $(IMAGE_NAME)
 
+install-clouflared:
+	curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o ~/cloudflared
+	chmod +x ~/cloudflared
+
 tunnel:
-	ngrok http $(HTTP_PORT)
+	@test -f ~/cloudflared || $(MAKE) install-clouflared
+	~/cloudflared tunnel --url http://127.0.0.1:$(HTTP_PORT)
 
 check-gcloud:
 	@export PATH="$$HOME/google-cloud-sdk/bin:$$PATH"; \
@@ -128,7 +123,7 @@ frontend-build:
 SERVER      ?= https://todo.run.app
 CAM_USER    ?= admin
 CAM_PASS    ?= password
-VIDEO       ?= test.mp4
+VIDEO       ?= frontend/public/test2.mp4
 SERVER_FPS  ?= 14
 MAX_FRAMES  ?= 500
 test-pipeline:
@@ -148,4 +143,4 @@ clean:
 	docker ps -aq --filter ancestor=$(IMAGE_NAME) | xargs -r docker rm || true
 	docker rmi $(IMAGE_NAME) || true
 
-.PHONY: info test install-docker install-ngrok install-gcloud build run-local tunnel check-gcloud gcloud-auth configure-gcloud deploy-gcloud test-pipeline test-pipeline-dev send-video send-video-local dev-server dev-frontend frontend-dev frontend-build clean
+.PHONY: info test install-docker install-gcloud build install-clouflared run-local tunnel check-gcloud gcloud-auth configure-gcloud deploy-gcloud test-pipeline test-pipeline-dev send-video send-video-local dev-server dev-frontend frontend-dev frontend-build clean

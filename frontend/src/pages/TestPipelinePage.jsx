@@ -56,7 +56,9 @@ export default function TestPipelinePage() {
       return JSON.parse(new TextDecoder().decode(buf));
     };
 
-    const BASE = 'https://api.kickanalytics.live/pipeline-data';
+    const BASE = import.meta.env.DEV
+      ? '/pipeline_data'
+      : 'https://api.kickanalytics.live/pipeline-data';
     Promise.all([
       fetchWithProgress(`${BASE}/frames.json`, p => setProgress(Math.round(p * 0.95))),
       fetch(`${BASE}/meta.json`).then(r => { if (!r.ok) throw new Error('meta.json introuvable'); return r.json(); }),

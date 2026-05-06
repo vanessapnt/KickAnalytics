@@ -151,7 +151,7 @@ export default function IndexPage() {
     if (activeSection === 'live') {
       document.body.style.overflow = 'hidden';
       fetch('/api/live/players').then(r => r.ok ? r.json() : null).then(p => { if (p) setMatchPlayers(p); }).catch(() => {});
-      return () => { document.body.style.overflow = ''; };
+      return () => { document.body.style.overflow = ''; setReplayFrames(null); };
     }
   }, [activeSection]);
 
